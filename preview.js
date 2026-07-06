@@ -51,6 +51,10 @@
     o.textContent =
       ".pp-page .notion-page-content{width:100%!important;max-width:none!important;padding:0!important;margin:0!important;}" +
       ".pp-page-inner > *{max-width:100%;}" +
+      // 표를 본문 폭에 맞춰 축소(Notion 표는 컬럼 고정 px 라 여백 크면 오른쪽이 잘림).
+      // width:100%+auto 레이아웃이면 컬럼 비율을 대략 유지하며 폭에 맞게 줄고, min-width:0·줄바꿈으로 안 넘침.
+      ".pp-page-inner table{width:100%!important;max-width:100%!important;table-layout:auto!important;}" +
+      ".pp-page-inner table td,.pp-page-inner table th{min-width:0!important;overflow-wrap:anywhere!important;}" +
       // Notion 전역 CSS가 우리 UI를 덮어쓰지 못하게 방어(화면 한정 — 인쇄 땐 툴바 숨김 유지)
       "@media screen{" +
       "body{background:#e9e9ec!important;}" +
@@ -137,28 +141,135 @@
 
     pagesEl.innerHTML = "";
     let overflowOne = 0;
+    let cur; // 현재 페이지의 inner(흐름 대상)
     function newPage() {
       const { pg, inner } = makePage();
       pagesEl.appendChild(pg);
+      cur = inner;
       return inner;
     }
-    let cur = newPage();
+    // 지금까지 담은 게 현재 페이지 콘텐츠 높이에 들어가는가
+    const fits = () => cur.scrollHeight <= contentH + 1;
 
-    for (const unit of units) {
-      const el = unit.cloneNode(true);
+    // 더 쪼갤 수 없는(원자) 요소: 여기서 넘치면 잘림 처리
+    const ATOMIC_TAGS = new Set(["TR", "TD", "TH", "IMG", "HR", "BR"]);
+
+    // el 을 분할할 자식 목록(클론). 표는 본문 행, 그 외는 요소 자식.
+    // 쪼갤 게 없으면(원자) null.
+    function childrenToSplit(el) {
+      if (ATOMIC_TAGS.has(el.tagName)) return null;
+      if (el.tagName === "TABLE") {
+        const body = [...el.querySelectorAll(":scope > tbody > tr")];
+        const direct = body.length ? body : [...el.querySelectorAll(":scope > tr")];
+        return direct.length > 1 ? direct.map((r) => r.cloneNode(true)) : null;
+      }
+      const kids = [...el.children];
+      return kids.length ? kids.map((k) => k.cloneNode(true)) : null;
+    }
+
+    // el 과 같은 껍데기 + 반복 요소(표 헤더/colgroup)를 만들고, 자식을 담을 target 반환.
+    function makeShell(el) {
+      const shell = el.cloneNode(false);
+      let target = shell;
+      if (el.tagName === "TABLE") {
+        el.querySelectorAll(":scope > colgroup, :scope > thead").forEach((h) =>
+          shell.appendChild(h.cloneNode(true))
+        );
+        const tb = document.createElement("tbody");
+        shell.appendChild(tb);
+        target = tb; // 본문 행은 tbody 로(유효한 표 구조 유지 → 렌더/측정 정확)
+      }
+      return { shell, target };
+    }
+
+    // el(클론)을 현재 페이지에 흘려 담는다. 넘치면 새 페이지로 분할하며 이어 담음.
+    function place(el) {
+      // 1) 통째로 시도 — 남은 공간에 들어가면 끝
       cur.appendChild(el);
-      if (cur.scrollHeight > contentH + 1) {
-        if (cur.children.length > 1) {
-          // 다른 내용이 있으면 이 블록은 다음 페이지로 통째로 이동
-          cur.removeChild(el);
-          cur = newPage();
-          cur.appendChild(el);
-          if (cur.scrollHeight > contentH + 1) overflowOne++; // 단일 블록이 페이지보다 큼(v1 한계)
+      // 레이아웃 박스 높이 0 = 보이지 않는 Notion UI 잔재(블록 핸들 오버레이, 빈 선택 래퍼 등).
+      if (el.offsetHeight === 0 && !el.querySelector("img")) { cur.removeChild(el); return; }
+      const elH = Math.ceil(el.getBoundingClientRect().height); // el 자체 높이(형제 무관)
+      if (fits()) return;
+      cur.removeChild(el);
+
+      const tooBig = elH > contentH + 1; // 페이지 하나에도 안 들어갈 만큼 큰가
+      const kids = childrenToSplit(el);
+
+      // 2) 페이지 하나엔 들어감(남은 공간만 부족) → 통째로 새 페이지로 이동(어색한 분할 방지)
+      if (!tooBig) {
+        if (cur.children.length > 0) newPage();
+        cur.appendChild(el);
+        return; // 빈 페이지엔 반드시 들어감
+      }
+
+      // 3) 페이지보다 큰데 더 못 쪼갬(원자) → 잘림
+      if (!kids) {
+        if (cur.children.length > 0) newPage();
+        cur.appendChild(el);
+        overflowOne++;
+        console.warn("[pp-clip] 페이지보다 큰 블록(잘림):", el.tagName, el.className || "(no class)", elH + "px >", contentH + "px");
+        return;
+      }
+
+      // 4) 페이지보다 큰 분할 가능 블록 → 현재 페이지 남은 공간부터 채우며 분할.
+      //    shell/페이지는 실제로 자식을 넣기 직전에만 생성(lazy) → 빈 페이지가 안 생김.
+      const isTable = el.tagName === "TABLE";
+      let shell = null, target = null, needNewPage = false;
+      function open() {
+        if (shell) return;
+        if (needNewPage) { newPage(); needNewPage = false; }
+        ({ shell, target } = makeShell(el));
+        cur.appendChild(shell);
+      }
+      function seal() { shell = null; target = null; needNewPage = true; }
+      function clipRow(kid) {
+        target.appendChild(kid); // 표 구조 유지한 채 잘림
+        overflowOne++;
+        console.warn("[pp-clip] 페이지보다 큰 표 행(잘림):", kid.className || "(row)");
+        seal();
+      }
+      function splitBig(kid) {
+        cur.removeChild(shell); shell = null; target = null;
+        place(kid); // 페이지보다 큰 자식을 재귀 분할
+        seal();
+      }
+      for (const kid of kids) {
+        // 분할 대상(표/컬럼 등) 안의 "내용 없는" kid 는 건너뜀(높이 무관).
+        // Notion 표의 배경/선택 오버레이 레이어(표 높이만큼 크지만 텍스트 없음)·드래그 핸들 등.
+        // 텍스트·이미지·비디오·표행이 하나라도 있으면 실제 내용이므로 유지(중첩표·이미지 보존).
+        if (!isTable) {
+          const noContent = !(kid.textContent || "").trim() && !kid.querySelector("img, video, canvas, tr, iframe");
+          if (noContent) continue;
+        }
+        open();
+        target.appendChild(kid);
+        if (fits()) continue;
+        target.removeChild(kid);
+
+        if (target.children.length === 0) {
+          // 이 조각 첫 요소부터 안 들어감 = 자식 하나가 페이지보다 큼
+          if (isTable) clipRow(kid); else splitBig(kid);
         } else {
-          overflowOne++; // 페이지보다 큰 단일 블록(표/이미지 분할은 v2)
+          // 현재 조각 확정 → 새 페이지에서 kid 재시도
+          seal(); open();
+          target.appendChild(kid);
+          if (!fits()) {
+            target.removeChild(kid);
+            if (isTable) clipRow(kid); else splitBig(kid);
+          }
         }
       }
+      if (shell && target.children.length === 0) cur.removeChild(shell); // 남은 빈 껍데기 정리
     }
+
+    newPage();
+    for (const unit of units) place(unit.cloneNode(true));
+
+    // 분할 잔여로 남은 완전 빈 페이지(자식 0개) 제거(안전망).
+    // 높이 0 블록은 place()에서 이미 건너뛰므로 여기선 자식 없는 껍데기만 정리.
+    [...pagesEl.children].forEach((pg) => {
+      if (pg.firstElementChild && pg.firstElementChild.children.length === 0) pg.remove();
+    });
 
     wrap.remove();
 
