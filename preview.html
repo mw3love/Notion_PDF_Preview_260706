@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>페이지 나눔 미리보기</title>
+    <style>
+      html, body { margin: 0; padding: 0; }
+      @media screen {
+        body {
+          background: #e9e9ec;
+          font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+        }
+        #toolbar {
+          position: fixed; top: 0; left: 0; right: 0; height: 48px;
+          display: flex; align-items: center; gap: 12px; padding: 0 16px;
+          background: #fff; border-bottom: 1px solid #d0d0d5;
+          box-shadow: 0 1px 4px rgba(0,0,0,.08); z-index: 10; font-size: 13px;
+        }
+        #toolbar label { display: inline-flex; align-items: center; gap: 4px; }
+        #toolbar select, #toolbar input { font-size: 13px; padding: 3px 6px; }
+        #toolbar button {
+          font-size: 13px; padding: 5px 12px; cursor: pointer;
+          border-radius: 5px; border: 1px solid #c0c0c6; background: #f6f6f8;
+        }
+        #toolbar button.primary { background: #2383e2; color: #fff; border-color: #2383e2; }
+        #status { margin-left: auto; color: #666; }
+        #pages { padding: 64px 0 40px; }
+        .pp-page {
+          background: #fff; margin: 0 auto 12px;
+          box-shadow: 0 1px 6px rgba(0,0,0,.25);
+        }
+      }
+      @media print {
+        #toolbar { display: none !important; }
+        #pages { padding: 0 !important; }
+        .pp-page { margin: 0 !important; box-shadow: none !important; break-after: page; }
+        .pp-page:last-child { break-after: auto; }
+      }
+    </style>
+    <!-- @page 규칙(용지 크기)은 preview.js가 동적으로 주입 -->
+    <style id="pp-page-rule"></style>
+  </head>
+  <body>
+    <div id="toolbar">
+      <strong id="doctitle">미리보기</strong>
+      <label>용지
+        <select id="paper">
+          <option value="A4" selected>A4</option>
+          <option value="A3">A3</option>
+        </select>
+      </label>
+      <label>여백
+        <input id="margin" type="number" value="20" min="0" max="60" step="1" style="width: 4em" /> mm
+      </label>
+      <button id="repaginate">다시 계산</button>
+      <button id="save" class="primary">PDF로 저장</button>
+      <span id="status">불러오는 중…</span>
+    </div>
+    <div id="pages"></div>
+    <script src="preview.js"></script>
+  </body>
+</html>
