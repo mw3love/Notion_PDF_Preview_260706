@@ -24,14 +24,47 @@
         }
         #toolbar button.primary { background: #2383e2; color: #fff; border-color: #2383e2; }
         #status { margin-left: auto; color: #666; }
-        #pages { padding: 64px 0 40px; }
+        #pages { padding: 64px 0 40px 176px; }
         .pp-page {
           background: #fff; margin: 0 auto 12px;
           box-shadow: 0 1px 6px rgba(0,0,0,.25);
         }
+        /* 좌측 썸네일 레일 — 좌측 빈 여백(gutter) 활용 */
+        #thumbrail {
+          position: fixed; top: 48px; left: 0; bottom: 0; width: 176px;
+          box-sizing: border-box; padding: 12px 0; overflow-y: auto; overflow-x: hidden;
+          background: #f4f4f6; border-right: 1px solid #d0d0d5; z-index: 5;
+          overscroll-behavior: contain; /* 스크롤 끝에서 본문으로 휠 전파(튐) 차단 */
+          /* 표준 속성 — Notion CSS가 scrollbar-width 를 걸면 ::-webkit-scrollbar 는 무시되므로
+             여기서 직접 지정해 오버레이(hover 전용) 대신 색 입힌 상시 스크롤바로 강제 */
+          scrollbar-width: thin;
+          scrollbar-color: #97979f #e6e6ea;
+        }
+        /* 위 표준 속성이 안 먹는 브라우저용 폴백(webkit) */
+        #thumbrail::-webkit-scrollbar { width: 10px !important; }
+        #thumbrail::-webkit-scrollbar-track { background: #e6e6ea !important; }
+        #thumbrail::-webkit-scrollbar-thumb { background: #b6b6be !important; border-radius: 5px; border: 2px solid #e6e6ea; min-height: 30px; }
+        #thumbrail::-webkit-scrollbar-thumb:hover { background: #97979f !important; }
+        #thumbrail .thumb {
+          cursor: pointer; margin: 0 auto 10px; width: 130px;
+        }
+        #thumbrail .thumb * { pointer-events: none; }
+        #thumbrail .thumb-frame {
+          width: 130px; overflow: hidden; background: #fff;
+          border: 1px solid #d5d5da; border-radius: 2px;
+          box-shadow: 0 1px 3px rgba(0,0,0,.15);
+        }
+        #thumbrail .thumb.active .thumb-frame { border-color: #2383e2; box-shadow: 0 0 0 2px #2383e2; }
+        #thumbrail .thumb-num { text-align: center; font-size: 11px; color: #888; margin-top: 3px; }
+        #thumbrail .thumb.active .thumb-num { color: #2383e2; font-weight: 600; }
+        /* 레일 안의 페이지 클론은 주입 CSS의 !important 를 이 셀렉터(더 높은 특이성)로 무력화 */
+        #thumbrail .pp-page { margin: 0 !important; box-shadow: none !important; }
+        /* 레일 접힘 */
+        body.norail #thumbrail { display: none; }
+        body.norail #pages { padding-left: 0 !important; }
       }
       @media print {
-        #toolbar { display: none !important; }
+        #toolbar, #thumbrail { display: none !important; }
         #pages { padding: 0 !important; }
         .pp-page { margin: 0 !important; box-shadow: none !important; break-after: page; }
         .pp-page:last-child { break-after: auto; }
@@ -53,9 +86,11 @@
         <input id="margin" type="number" value="20" min="0" max="60" step="1" style="width: 4em" /> mm
       </label>
       <button id="repaginate">다시 계산</button>
+      <button id="thumbtoggle">썸네일</button>
       <button id="save" class="primary">PDF로 저장</button>
       <span id="status">불러오는 중…</span>
     </div>
+    <div id="thumbrail"></div>
     <div id="pages"></div>
     <script src="preview.js"></script>
   </body>

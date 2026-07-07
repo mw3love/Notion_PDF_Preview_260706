@@ -8,8 +8,77 @@
   const paperSel = $("paper");
   const marginInp = $("margin");
   const pageRuleEl = $("pp-page-rule");
+  const railEl = $("thumbrail");
 
   const SIZES = { A4: { w: 210, h: 297 }, A3: { w: 297, h: 420 } }; // mm
+  const MM_PER_PX = 96 / 25.4; // 96dpi
+
+  // 좌측 레일에 각 페이지의 축소 클론(썸네일)을 그린다. paginate 끝에서 매번 리빌드.
+  // 이미지가 이미 data URL 로 인라인돼 있어 클론이 오프라인으로 완전히 렌더된다.
+  let thumbIO = null, spyLock = false, spyTimer = null;
+  function buildThumbs(sz) {
+    if (thumbIO) { thumbIO.disconnect(); thumbIO = null; }
+    railEl.innerHTML = "";
+    const pages = [...pagesEl.children];
+    if (!pages.length) return; // 접힘 여부(norail)는 사용자 토글 소유 — 여기서 건드리지 않음
+
+    const THUMB_W = 130;
+    const k = THUMB_W / (sz.w * MM_PER_PX); // 페이지 실폭(px) → 썸네일 폭
+    const frameH = Math.round(sz.h * MM_PER_PX * k);
+    const pageStepPx = sz.h * MM_PER_PX + 12; // 페이지 1장 높이(px)+여백 — smooth/instant 분기 기준
+    const pageToThumb = new Map();
+
+    pages.forEach((pg, i) => {
+      const item = document.createElement("div");
+      item.className = "thumb";
+      const frame = document.createElement("div");
+      frame.className = "thumb-frame";
+      frame.style.height = frameH + "px";
+      const clone = pg.cloneNode(true);
+      clone.style.transform = `scale(${k})`;
+      clone.style.transformOrigin = "top left";
+      frame.appendChild(clone);
+      const num = document.createElement("div");
+      num.className = "thumb-num";
+      num.textContent = i + 1;
+      item.appendChild(frame);
+      item.appendChild(num);
+      item.addEventListener("click", () => {
+        setActive(pg); // 클릭 즉시 목표 페이지 강조 → 중간 페이지 거쳐가는 깜빡임 방지
+        const y = pg.getBoundingClientRect().top + window.scrollY - 56; // 툴바(48) 아래로
+        const dist = Math.abs(y - window.scrollY);
+        if (dist <= 2) return; // 이미 그 위치
+        if (dist <= 2.5 * pageStepPx) {
+          // 가까운 이동(~2쪽 이내)은 부드럽게 — 연속성. 스크롤스파이 잠가 강조 흔들림 방지.
+          spyLock = true;
+          clearTimeout(spyTimer);
+          spyTimer = setTimeout(() => { spyLock = false; }, 1500); // scrollend 미발화 대비 폴백
+          window.scrollTo({ top: y, behavior: "smooth" });
+        } else {
+          // 먼 이동은 순간이동 — 중간 페이지 훑기 없이 즉시 도착(PDF 뷰어 관례).
+          window.scrollTo({ top: y, behavior: "auto" });
+        }
+      });
+      railEl.appendChild(item);
+      pageToThumb.set(pg, item);
+    });
+
+    // 스크롤 위치 추적 → 가장 많이 보이는 페이지의 썸네일을 강조
+    function setActive(pg) {
+      railEl.querySelectorAll(".thumb.active").forEach((t) => t.classList.remove("active"));
+      const item = pageToThumb.get(pg);
+      if (item) item.classList.add("active"); // 강조 테두리만 — 레일 자동 스크롤은 안 함(덜컹 방지)
+    }
+    const ratios = new Map();
+    thumbIO = new IntersectionObserver((entries) => {
+      entries.forEach((e) => ratios.set(e.target, e.intersectionRatio));
+      if (spyLock) return; // 클릭 점프 중엔 중간 페이지로 강조가 흔들리지 않게
+      let best = null, bestR = -1;
+      ratios.forEach((r, pg) => { if (r > bestR) { bestR = r; best = pg; } });
+      if (best) setActive(best);
+    }, { root: null, rootMargin: "-48px 0px 0px 0px", threshold: [0, 0.25, 0.5, 0.75, 1] });
+    pages.forEach((pg) => thumbIO.observe(pg));
+  }
 
   const data = await chrome.storage.local.get("snapshot");
   const snap = data && data.snapshot;
@@ -71,7 +140,8 @@
       "#toolbar{position:fixed!important;top:0!important;left:0!important;right:0!important;height:48px!important;" +
       "display:flex!important;align-items:center!important;background:#fff!important;z-index:2147483647!important;" +
       "border-bottom:1px solid #d0d0d5!important;padding:0 16px!important;}" +
-      "#pages{padding:64px 0 40px!important;}" +
+      "#pages{padding:64px 0 40px 176px!important;}" +
+      "body.norail #pages{padding-left:0!important;}" +
       ".pp-page{margin:0 auto 12px!important;background:#fff!important;box-shadow:0 1px 6px rgba(0,0,0,.25)!important;}" +
       "}";
     document.head.appendChild(o);
@@ -286,6 +356,7 @@
     const n = pagesEl.children.length;
     statusEl.textContent =
       `${paper} · ${n}쪽` + (overflowOne ? ` · ⚠ 한 페이지보다 큰 블록 ${overflowOne}개(잘림)` : "");
+    buildThumbs(sz);
     $("repaginate").disabled = false;
     running = false;
   }
@@ -293,6 +364,8 @@
   paperSel.addEventListener("change", paginate);
   marginInp.addEventListener("change", paginate);
   $("repaginate").addEventListener("click", paginate);
+  $("thumbtoggle").addEventListener("click", () => document.body.classList.toggle("norail"));
+  window.addEventListener("scrollend", () => { spyLock = false; clearTimeout(spyTimer); });
   $("save").addEventListener("click", () => window.print());
 
   injectStyles();
