@@ -217,6 +217,8 @@
       //     열이 아주 많은 DB 는 우측이 잘릴 수 있으나, 이는 Notion export 도 동일한 한계(추후 필요 시 별도 처리).
       // Notion 전역 CSS가 우리 UI를 덮어쓰지 못하게 방어(화면 한정 — 인쇄 땐 툴바 숨김 유지)
       "@media screen{" +
+      // 창 스크롤바 상시 표시(오버레이 방지)·기본 폭 — Notion CSS가 걸어도 이게 뒤에 와서 이김
+      "html{scrollbar-color:#b3b3ba #ececef!important;scrollbar-width:auto!important;}" +
       "body{background:#e9e9ec!important;}" +
       "#toolbar{position:fixed!important;top:0!important;left:0!important;right:0!important;height:48px!important;" +
       "display:flex!important;align-items:center!important;background:#fff!important;z-index:2147483647!important;" +
@@ -260,7 +262,7 @@
     function makePage() {
       const pg = document.createElement("div");
       pg.className = "pp-page";
-      pg.style.cssText = `width:${sz.w}mm;height:${sz.h}mm;padding:${mv}mm ${mh}mm;box-sizing:border-box;overflow:hidden;`;
+      pg.style.cssText = `width:${sz.w}mm;height:${sz.h}mm;padding:${mv}mm ${mh}mm;box-sizing:border-box;overflow:hidden;position:relative;`; // position:relative = 네모박스 절대좌표 기준
       const inner = document.createElement("div");
       inner.className = "pp-page-inner notion-page-content";
       inner.style.cssText = "height:100%;overflow:hidden;";
@@ -435,6 +437,10 @@
 
     wrap.remove();
 
+    // Notion 편집 DOM 복제로 딸려온 contenteditable 제거 → 읽기 전용(우발적 편집 방지).
+    // 텍스트 선택(형광펜)·박스 그리기는 그대로 동작.
+    pagesEl.querySelectorAll("[contenteditable]").forEach((e) => e.removeAttribute("contenteditable"));
+
     const n = pagesEl.children.length;
     totalPages = n;
     paperLabel = paper;
@@ -459,6 +465,362 @@
     spyLock = false; clearTimeout(spyTimer);
     tocSpyLock = false; clearTimeout(tocSpyTimer); updateTocSpy();
   });
+  // ── 주석 도구: 형광펜(코랄) · 빨강 네모박스 · 텍스트 ──
+  // 박스·텍스트는 .pp-annot 로 통합: 도구 켠 채로 클릭 선택·이동·삭제·색변경(박스는 크기조절도).
+  // 주석은 각 .pp-page 안에 들어가 인쇄에 함께 나온다(테두리·배경은 print-color-adjust:exact 로 출력).
+  // ⚠ 재계산(용지·여백 변경) 시 페이지가 원본에서 다시 조판되므로 주석은 사라진다(주석은 마지막에).
+  // 각 도구는 자기 색을 기억(기본: 형광펜 코랄 · 네모 빨강 · 텍스트 검정). hover 패널에서 색·두께·크기 변경.
+  const PALETTE = [
+    { n: "검정", c: "#000000" }, { n: "흰색", c: "#ffffff" }, { n: "빨강", c: "#e23b3b" },
+    { n: "코랄", c: "#ff7f50" }, { n: "파랑", c: "#2f6fe0" },
+  ];
+  const toolColor = { hl: "#ff7f50", box: "#e23b3b", text: "#000000" };
+  let tool = null;                        // 'hl' | 'box' | 'text' | null
+  let lineWInp = null, fontSzInp = null;  // 패널 안에서 생성
+  const hexToRgba = (hex, a) => {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  };
+
+  // 툴바: 도구 버튼 + hover 시 아래로 뜨는 패널(5색 + 네모 두께 / 텍스트 크기)
+  const annotEl = $("annot");
+  const hlIcon = `<svg viewBox="0 0 24 24" width="20" height="20"><path d="M14.7 3.3l6 6-9.9 9.9-4.7 1.3 1.3-4.7z" fill="#777"/><rect x="3" y="20.4" width="18" height="2.7" rx="1.3" fill="#ff7f50"/></svg>`;
+  const boxIcon = `<svg viewBox="0 0 24 24" width="20" height="20"><rect x="4" y="6.5" width="16" height="11" rx="1.2" fill="none" stroke="#e23b3b" stroke-width="2.4"/></svg>`;
+  const textIcon = `<svg viewBox="0 0 24 24" width="20" height="20"><path d="M5 4h14v3.2h-5.4V20h-3.2V7.2H5z" fill="#333"/></svg>`;
+  const lineIcon = `<svg viewBox="0 0 24 24" width="17" height="17"><rect x="3" y="5" width="18" height="1.6" fill="#666"/><rect x="3" y="10.7" width="18" height="2.8" fill="#666"/><rect x="3" y="17" width="18" height="4.4" fill="#666"/></svg>`;
+  const fontIcon = `<span style="font-family:Georgia,serif;color:#666;display:inline-flex;align-items:baseline;gap:1px;line-height:1"><span style="font-size:17px">A</span><span style="font-size:11px">A</span></span>`;
+
+  const toolBtns = {}, swPanels = {};
+  function buildTool(t, iconHtml, title, extra) {
+    const wrap = document.createElement("span");
+    wrap.className = "toolwrap";
+    const btn = document.createElement("button");
+    btn.innerHTML = iconHtml; btn.title = title; btn.dataset.tool = t;
+    btn.addEventListener("mousedown", (e) => e.preventDefault()); // 클릭이 기존 텍스트 선택을 지우지 않게
+    btn.addEventListener("click", () => setTool(t));
+    wrap.appendChild(btn);
+    const panel = document.createElement("div");
+    panel.className = "toolpanel";
+    swPanels[t] = PALETTE.map((p) => {
+      const s = document.createElement("button");
+      s.className = "sw"; s.style.background = p.c; s.title = p.n;
+      s.addEventListener("mousedown", (e) => e.preventDefault());
+      s.addEventListener("click", () => pickColor(t, p.c));
+      panel.appendChild(s); return s;
+    });
+    if (extra === "line" || extra === "font") {
+      const ctl = document.createElement("span");
+      ctl.className = "ctl";
+      ctl.innerHTML = extra === "line" ? lineIcon : fontIcon;
+      const inp = document.createElement("input");
+      inp.type = "number";
+      if (extra === "line") { inp.value = "3"; inp.min = "1"; inp.max = "20"; ctl.title = "선 두께(px) — 네모 위에서 휠로도 조절"; lineWInp = inp; }
+      else { inp.value = "16"; inp.min = "8"; inp.max = "96"; ctl.title = "글자 크기(px) — 텍스트 위에서 휠로도 조절"; fontSzInp = inp; }
+      ctl.appendChild(inp);
+      panel.appendChild(ctl);
+    }
+    wrap.appendChild(panel);
+    annotEl.appendChild(wrap);
+    toolBtns[t] = btn;
+  }
+  buildTool("hl", hlIcon, "형광펜 (Alt+1) — hover 로 색 선택", null);
+  buildTool("box", boxIcon, "네모박스 (Alt+2) — 클릭 선택·이동·크기조절·Del 삭제, hover 로 색·두께", "line");
+  buildTool("text", textIcon, "텍스트 (Alt+3) — 클릭 입력·더블클릭 재편집·Del 삭제, hover 로 색·크기", "font");
+
+  function paintSw(t) { swPanels[t].forEach((s, i) => s.classList.toggle("active", PALETTE[i].c === toolColor[t])); }
+  function pickColor(t, c) {
+    toolColor[t] = c; paintSw(t);
+    if (tool !== t) { tool = t; applyToolUI(); } // 색 고르면 그 도구 켜짐
+    if (t === "hl") applyHlToSelection();
+    else if (selectedObj) { // 선택된 주석이 그 종류면 즉시 색 변경
+      if (t === "box" && selectedObj.classList.contains("pp-box")) selectedObj.style.borderColor = c;
+      if (t === "text" && selectedObj.classList.contains("pp-text")) selectedObj.style.color = c;
+    }
+  }
+
+  function applyToolUI() {
+    document.body.classList.toggle("tool-hl", tool === "hl");
+    document.body.classList.toggle("tool-box", tool === "box");
+    document.body.classList.toggle("tool-text", tool === "text");
+    ["hl", "box", "text"].forEach((t) => { toolBtns[t].classList.toggle("active", tool === t); paintSw(t); });
+    if (tool === "hl") deselectObj(); // 형광펜 모드에선 주석이 통과(비활성)라 선택 해제
+  }
+  function setTool(t) {
+    tool = tool === t ? null : t; // 같은 도구 재클릭 = 끄기
+    applyToolUI();
+    if (tool === "hl") applyHlToSelection(); // 텍스트 먼저 선택하고 눌렀으면 즉시 강조
+  }
+  function applyHlToSelection() {
+    if (tool !== "hl") return;
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed && sel.rangeCount) highlightSelection();
+  }
+
+  // 형광펜: 선택 영역을 페이지 안에서 텍스트노드 단위로 <span.pp-hl> 로 감싼다.
+  function highlightSelection() {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    const anchor = range.startContainer;
+    const bound = anchor.nodeType === 1 ? anchor : anchor.parentElement;
+    const page = bound && bound.closest(".pp-page-inner");
+    if (!page) return;
+    const walker = document.createTreeWalker(page, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) =>
+        range.intersectsNode(n) && n.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT,
+    });
+    const nodes = [];
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) nodes.push(n);
+    nodes.forEach((node) => {
+      if (node.parentElement && node.parentElement.classList.contains("pp-hl")) return;
+      let s = 0, e = node.nodeValue.length;
+      if (node === range.startContainer) s = range.startOffset;
+      if (node === range.endContainer) e = range.endOffset;
+      if (s >= e) return;
+      const r = document.createRange();
+      r.setStart(node, s); r.setEnd(node, e);
+      const span = document.createElement("span");
+      span.className = "pp-hl"; span.style.backgroundColor = hexToRgba(toolColor.hl, 0.42);
+      try { r.surroundContents(span); } catch (err) { /* 경계 예외 스킵 */ }
+    });
+    sel.removeAllRanges();
+  }
+  function removeHl(hl) {
+    const p = hl.parentNode;
+    while (hl.firstChild) p.insertBefore(hl.firstChild, hl);
+    p.removeChild(hl); p.normalize();
+  }
+
+  // ── 박스·텍스트(주석 오브젝트) 그리기·선택·이동·크기조절·편집 ──
+  let boxEl = null, boxPage = null, boxStart = null; // 새로 그리는 박스
+  let selectedObj = null;                            // 선택된 주석(박스 또는 텍스트)
+  let editingText = null;                            // 편집 중인 텍스트
+  let manip = null;                                  // {mode:'move'|'resize', dir, g0, pr, sx, sy}
+
+  const geom = (b) => ({
+    l: parseFloat(b.style.left) || 0, t: parseFloat(b.style.top) || 0,
+    w: parseFloat(b.style.width) || b.offsetWidth || 0,
+    h: parseFloat(b.style.height) || b.offsetHeight || 0,
+  });
+  function drawBox(e) {
+    const r = boxPage.getBoundingClientRect();
+    const x = Math.max(0, Math.min(boxStart.x - r.left, e.clientX - r.left));
+    const y = Math.max(0, Math.min(boxStart.y - r.top, e.clientY - r.top));
+    const w = Math.min(Math.abs(e.clientX - boxStart.x), r.width - x);
+    const h = Math.min(Math.abs(e.clientY - boxStart.y), r.height - y);
+    Object.assign(boxEl.style, { left: x + "px", top: y + "px", width: w + "px", height: h + "px" });
+  }
+  function selectObj(el) {
+    if (selectedObj === el) return;
+    deselectObj();
+    selectedObj = el;
+    el.classList.add("sel");
+    if (el.classList.contains("pp-box")) {
+      ["nw", "n", "ne", "e", "se", "s", "sw", "w"].forEach((d) => {
+        const hdl = document.createElement("div");
+        hdl.className = "bh " + d; hdl.dataset.dir = d;
+        el.appendChild(hdl);
+      });
+    }
+  }
+  function deselectObj() {
+    if (!selectedObj) return;
+    selectedObj.querySelectorAll(".bh").forEach((h) => h.remove());
+    selectedObj.classList.remove("sel");
+    selectedObj = null;
+  }
+  function createText(page, e) {
+    const r = page.getBoundingClientRect();
+    const el = document.createElement("div");
+    el.className = "pp-annot pp-text";
+    el.style.left = Math.max(0, e.clientX - r.left) + "px";
+    el.style.top = Math.max(0, e.clientY - r.top) + "px";
+    el.style.color = toolColor.text;
+    el.style.fontSize = (parseInt(fontSzInp.value, 10) || 16) + "px";
+    el.addEventListener("blur", () => endEdit(el));
+    page.appendChild(el);
+    selectObj(el);
+    editText(el);
+  }
+  function placeCaretEnd(el) {
+    const r = document.createRange();
+    r.selectNodeContents(el); r.collapse(false);
+    const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  }
+  function editText(el) {
+    editingText = el;
+    el.contentEditable = "true";
+    el.classList.add("editing");
+    el.focus();
+    placeCaretEnd(el);
+  }
+  // 편집 종료(Esc·Ctrl+Enter·바깥클릭·blur 어디서 와도 1회만 — idempotent). 캐럿도 확실히 제거.
+  function endEdit(el) {
+    if (!el.classList.contains("editing")) return;
+    el.classList.remove("editing");
+    el.contentEditable = "false";
+    if (editingText === el) editingText = null;
+    const s = window.getSelection(); if (s) s.removeAllRanges(); // 남은 캐럿 제거
+    el.blur();
+    if (!el.textContent.trim()) { if (selectedObj === el) deselectObj(); el.remove(); } // 빈 텍스트 제거
+  }
+
+  pagesEl.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    // 편집 중 텍스트 바깥 클릭 = 편집 종료(이 클릭은 소비)
+    if (editingText && !editingText.contains(e.target)) { editingText.blur(); e.preventDefault(); return; }
+    if (tool === "hl") return; // 형광펜은 mouseup 에서 처리
+
+    // 리사이즈 핸들 / 주석 선택·이동
+    const hdl = e.target.closest(".bh");
+    if (hdl) {
+      const box = hdl.parentElement;
+      selectObj(box);
+      manip = { mode: "resize", dir: hdl.dataset.dir, g0: geom(box), pr: box.parentElement.getBoundingClientRect(), sx: e.clientX, sy: e.clientY };
+      e.preventDefault(); return;
+    }
+    const annot = e.target.closest(".pp-annot");
+    if (annot) {
+      if (annot.classList.contains("editing")) return; // 편집 중엔 캐럿/텍스트선택 허용
+      selectObj(annot);
+      manip = { mode: "move", g0: geom(annot), pr: annot.parentElement.getBoundingClientRect(), sx: e.clientX, sy: e.clientY };
+      e.preventDefault(); return;
+    }
+    // 빈 곳: 그리기(box) / 텍스트 배치(text) / 해제(null)
+    const page = e.target.closest(".pp-page");
+    if (tool === "box" && page) {
+      boxPage = page;
+      boxStart = { x: e.clientX, y: e.clientY };
+      boxEl = document.createElement("div");
+      boxEl.className = "pp-annot pp-box";
+      boxEl.style.border = `${parseInt(lineWInp.value, 10) || 3}px solid ${toolColor.box}`;
+      page.appendChild(boxEl);
+      drawBox(e);
+      e.preventDefault(); return;
+    }
+    if (tool === "text" && page) { createText(page, e); e.preventDefault(); return; }
+    deselectObj();
+  });
+
+  pagesEl.addEventListener("dblclick", (e) => {
+    const t = e.target.closest(".pp-text");
+    if (t) { selectObj(t); editText(t); }
+  });
+
+  // 네모/텍스트 위에서 휠 → 두께/글자크기 조절 + 기본값으로 기억(다음 신규가 같은 값).
+  pagesEl.addEventListener("wheel", (e) => {
+    if (tool === "hl") return; // 형광펜 모드는 주석 통과
+    const box = e.target.closest(".pp-box");
+    const txt = box ? null : e.target.closest(".pp-text");
+    if (!box && !txt) return;
+    e.preventDefault();
+    const d = e.deltaY < 0 ? 1 : -1;
+    if (box) {
+      const cur = Math.round(parseFloat(getComputedStyle(box).borderTopWidth)) || 3;
+      const v = Math.max(1, Math.min(20, cur + d));
+      box.style.borderWidth = v + "px";
+      if (lineWInp) lineWInp.value = v; // 기본값 갱신
+    } else {
+      const cur = Math.round(parseFloat(getComputedStyle(txt).fontSize)) || 16;
+      const v = Math.max(8, Math.min(96, cur + d));
+      txt.style.fontSize = v + "px";
+      if (fontSzInp) fontSzInp.value = v;
+    }
+  }, { passive: false });
+
+  document.addEventListener("mousemove", (e) => {
+    if (boxEl) { drawBox(e); return; }
+    if (!manip || !selectedObj) return;
+    const { g0, pr, dir } = manip;
+    const dx = e.clientX - manip.sx, dy = e.clientY - manip.sy;
+    let { l, t, w, h } = g0;
+    if (manip.mode === "move") { l = g0.l + dx; t = g0.t + dy; }
+    else {
+      if (dir.includes("e")) w = g0.w + dx;
+      if (dir.includes("s")) h = g0.h + dy;
+      if (dir.includes("w")) { l = g0.l + dx; w = g0.w - dx; }
+      if (dir.includes("n")) { t = g0.t + dy; h = g0.h - dy; }
+    }
+    if (w < 8) { if (manip.mode === "resize" && dir.includes("w")) l = g0.l + g0.w - 8; w = 8; }
+    if (h < 8) { if (manip.mode === "resize" && dir.includes("n")) t = g0.t + g0.h - 8; h = 8; }
+    const st = {};
+    if (manip.mode === "move") { // 페이지 안으로 완전 클램프(크기 고정)
+      l = Math.max(0, Math.min(l, pr.width - g0.w));
+      t = Math.max(0, Math.min(t, pr.height - g0.h));
+    } else {
+      l = Math.max(0, l); t = Math.max(0, t);
+      w = Math.min(w, pr.width - l); h = Math.min(h, pr.height - t);
+      st.width = w + "px"; st.height = h + "px";
+    }
+    st.left = l + "px"; st.top = t + "px";
+    Object.assign(selectedObj.style, st);
+  });
+
+  document.addEventListener("mouseup", (e) => {
+    if (boxEl) {
+      const g = geom(boxEl);
+      if (g.w < 8 || g.h < 8) boxEl.remove(); // 너무 작으면 취소
+      else selectObj(boxEl);                  // 그린 뒤 바로 선택(도구 안 꺼도 조작 가능)
+      boxEl = null; boxPage = null; boxStart = null;
+      return;
+    }
+    if (manip) { manip = null; return; }
+    if (tool === "hl") {
+      const inPage = e.target.closest && e.target.closest(".pp-page");
+      if (!inPage) return;
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed) { setTimeout(highlightSelection, 0); return; }
+      const hl = e.target.closest(".pp-hl");
+      if (hl) removeHl(hl);
+    }
+  });
+
+  // 두께·글자크기 입력 → 선택된 주석에 즉시 반영(+ 새 주석 기본값)
+  lineWInp.addEventListener("change", () => {
+    if (selectedObj && selectedObj.classList.contains("pp-box"))
+      selectedObj.style.borderWidth = (parseInt(lineWInp.value, 10) || 3) + "px";
+  });
+  fontSzInp.addEventListener("change", () => {
+    if (selectedObj && selectedObj.classList.contains("pp-text"))
+      selectedObj.style.fontSize = (parseInt(fontSzInp.value, 10) || 16) + "px";
+  });
+
+  // 단축키 + 선택 주석 키보드 조작
+  document.addEventListener("keydown", (e) => {
+    const ae = document.activeElement;
+    const inField = ae && (ae.tagName === "INPUT" || ae.tagName === "SELECT" || ae.tagName === "TEXTAREA" || ae.isContentEditable);
+    if (e.altKey && (e.code === "Digit1" || e.code === "Numpad1")) { e.preventDefault(); setTool("hl"); return; }
+    if (e.altKey && (e.code === "Digit2" || e.code === "Numpad2")) { e.preventDefault(); setTool("box"); return; }
+    if (e.altKey && (e.code === "Digit3" || e.code === "Numpad3")) { e.preventDefault(); setTool("text"); return; }
+    // 편집 종료: Esc 또는 Ctrl/Cmd+Enter — 한 번에 빠져나오고 캐럿 제거
+    if (editingText && (e.key === "Escape" || (e.key === "Enter" && (e.ctrlKey || e.metaKey)))) {
+      e.preventDefault(); endEdit(editingText); return;
+    }
+    if (e.key === "Escape") { tool = null; applyToolUI(); deselectObj(); return; }
+    if (selectedObj && !selectedObj.isConnected) selectedObj = null; // 재계산으로 페이지 교체
+    if (inField || !selectedObj) return;
+    if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      const b = selectedObj; deselectObj(); b.remove();
+      return;
+    }
+    const step = e.shiftKey ? 10 : 1;
+    const g = geom(selectedObj), pr = selectedObj.parentElement.getBoundingClientRect();
+    let moved = true;
+    if (e.key === "ArrowLeft") g.l -= step;
+    else if (e.key === "ArrowRight") g.l += step;
+    else if (e.key === "ArrowUp") g.t -= step;
+    else if (e.key === "ArrowDown") g.t += step;
+    else moved = false;
+    if (moved) {
+      e.preventDefault();
+      g.l = Math.max(0, Math.min(g.l, pr.width - g.w));
+      g.t = Math.max(0, Math.min(g.t, pr.height - g.h));
+      Object.assign(selectedObj.style, { left: g.l + "px", top: g.t + "px" });
+    }
+  });
+
+  applyToolUI(); // 초기 버튼/패널 상태
   $("save").addEventListener("click", () => window.print());
 
   injectStyles();
