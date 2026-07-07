@@ -55,6 +55,12 @@
       // width:100%+auto 레이아웃이면 컬럼 비율을 대략 유지하며 폭에 맞게 줄고, min-width:0·줄바꿈으로 안 넘침.
       ".pp-page-inner table{width:100%!important;max-width:100%!important;table-layout:auto!important;}" +
       ".pp-page-inner table td,.pp-page-inner table th{min-width:0!important;overflow-wrap:anywhere!important;}" +
+      // DB(컬렉션 뷰)는 <table> 이 아니라 div 그리드 + 가로 스크롤 캔버스(폭 ~1863px)라 위 table 규칙이 안 먹는다.
+      //   다만 편집 크롬 제거(content-snapshot.js) 후엔 실제 데이터 그리드가 좌측에 정렬되고 우측 빈 캔버스는
+      //   .pp-page 의 overflow:hidden 이 클립하므로 좁은 DB 는 그대로 페이지에 맞는다.
+      //   ※ .notion-table-view 의 인라인 padding-inline 을 0 으로 만들면(폭 축소 시도) no-JS preview 에서
+      //     float:inline-start 레이아웃이 붕괴해 표 전체가 사라진다(iframe 실측 확인) → 건드리지 않는다.
+      //     열이 아주 많은 DB 는 우측이 잘릴 수 있으나, 이는 Notion export 도 동일한 한계(추후 필요 시 별도 처리).
       // Notion 전역 CSS가 우리 UI를 덮어쓰지 못하게 방어(화면 한정 — 인쇄 땐 툴바 숨김 유지)
       "@media screen{" +
       "body{background:#e9e9ec!important;}" +

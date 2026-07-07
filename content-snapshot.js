@@ -70,6 +70,30 @@
     )
     .forEach((e) => e.remove());
 
+  // 3.1) DB(컬렉션 뷰) 편집 크롬 제거 — Notion 자체 PDF export 처럼 순수 데이터 표만 남긴다.
+  //      실제 DOM 으로 특정한 셀렉터(툴바 아이콘·"새로 만들기"·열 헤더 "+"·"새 페이지" 행).
+  //      데이터(헤더 셀·행)는 보존. 표 폭 맞춤은 preview.js injectStyles 에서 처리.
+  clone
+    .querySelectorAll(
+      ".notion-collection-add-view, .notion-collection-filter, .notion-collection-sort, " +
+        ".notion-collection-automation-edit-view, .notion-collection-edit-view, " +
+        ".notion-collection-view-item-add, .notion-table-view-add-column, .notion-table-view-add-row"
+    )
+    .forEach((e) => e.remove());
+  // 표 헤더 끝의 열 추가/더보기(+ / ...) 버튼은 안정적 notion 클래스가 없는 순수 div 라 위 셀렉터로 못 잡는다.
+  // 헤더로우의 직접 자식 중 데이터 헤더 셀(.notion-table-view-header-cell)을 품지 않은 것(버튼·0폭 스페이서)만
+  // 제거한다 → 헤더 셀은 보존. (:last-child 는 읽기전용 등으로 버튼이 없을 때 헤더를 지울 위험이 있어 피함.)
+  clone.querySelectorAll(".notion-table-view-header-row").forEach((hr) => {
+    [...hr.children].forEach((ch) => {
+      if (
+        !ch.classList.contains("notion-table-view-header-cell") &&
+        !ch.querySelector(".notion-table-view-header-cell")
+      ) {
+        ch.remove();
+      }
+    });
+  });
+
   // 3.5) 이미지 인라인화: 프록시(쿠키 필요)→S3(credentialed CORS 거부) 조합이라 콘텐츠 스크립트는
   //      직접 fetch 불가. 백그라운드 서비스워커(host_permissions 로 CORS 우회)에 위임해 data URL 로 박제.
   async function inlineImages(liveRoot, cloneRoot) {
