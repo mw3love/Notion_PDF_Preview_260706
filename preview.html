@@ -5,6 +5,7 @@
     <title>페이지 나눔 미리보기</title>
     <style>
       html, body { margin: 0; padding: 0; }
+      :root { --thumbw: 176px; --tocw: 220px; } /* 좌 썸네일·우 목차 레일 너비(드래그로 조절) */
       /* 주석(형광펜·네모) — 페이지 안에 있어 화면·인쇄 양쪽에 나오도록 전역 정의.
          배경/테두리 색 인쇄는 injectStyles 의 print-color-adjust:exact 가 보장. */
       .pp-hl { border-radius: 2px; /* 배경색은 인라인 style */ }
@@ -48,14 +49,23 @@
         }
         #toolbar button.primary { background: #2383e2; color: #fff; border-color: #2383e2; }
         #status { margin-left: auto; color: #666; }
-        #pages { padding: 64px 220px 40px 176px; }
+        #pages { padding: 64px var(--tocw) 40px var(--thumbw); }
+        /* 현재 페이지 인디케이터 — 하단 중앙, 스크롤 시 뜨고 잠시 후 사라짐 */
+        #pagepill {
+          position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+          background: rgba(28,28,30,.78); color: #fff; font-size: 13px; font-weight: 600;
+          padding: 6px 14px; border-radius: 999px; z-index: 8; pointer-events: none;
+          box-shadow: 0 3px 12px rgba(0,0,0,.3); letter-spacing: .03em;
+          opacity: 0; transition: opacity .3s ease;
+        }
+        #pagepill.show { opacity: 1; }
         .pp-page {
           background: #fff; margin: 0 auto 12px;
           box-shadow: 0 1px 6px rgba(0,0,0,.25);
         }
         /* 좌측 썸네일 레일 — 좌측 빈 여백(gutter) 활용 */
         #thumbrail {
-          position: fixed; top: 48px; left: 0; bottom: 0; width: 176px;
+          position: fixed; top: 48px; left: 0; bottom: 0; width: var(--thumbw);
           box-sizing: border-box; padding: 12px 0; overflow-y: auto; overflow-x: hidden;
           background: #f4f4f6; border-right: 1px solid #d0d0d5; z-index: 5;
           overscroll-behavior: contain; /* 스크롤 끝에서 본문으로 휠 전파(튐) 차단 */
@@ -85,7 +95,7 @@
         #thumbrail .pp-page { margin: 0 !important; box-shadow: none !important; }
         /* 우측 목차(TOC) 레일 — 우측 빈 여백(gutter) 활용, 좌측 썸네일 레일과 대칭 */
         #tocrail {
-          position: fixed; top: 48px; right: 0; bottom: 0; width: 220px;
+          position: fixed; top: 48px; right: 0; bottom: 0; width: var(--tocw);
           box-sizing: border-box; padding: 10px 0; overflow-y: auto; overflow-x: hidden;
           background: #f4f4f6; border-left: 1px solid #d0d0d5; z-index: 5;
           overscroll-behavior: contain; /* 스크롤 끝에서 본문으로 휠 전파(튐) 차단 */
@@ -116,13 +126,15 @@
           width: 16px; height: 56px; z-index: 6;
           display: flex; align-items: center; justify-content: center;
           background: #e4e4ea; border: 1px solid #d0d0d5;
-          color: #8a8a92; cursor: pointer; font-size: 15px; line-height: 1;
-          transition: left .18s ease, right .18s ease, background .12s, color .12s;
+          color: #8a8a92; cursor: col-resize; font-size: 15px; line-height: 1;
+          transition: background .12s, color .12s;
           user-select: none;
         }
         .rail-handle:hover { background: #d5d5dd; color: #444; }
-        #thumbhandle { left: 176px; border-left: none; border-radius: 0 6px 6px 0; }
-        #tochandle { right: 220px; border-right: none; border-radius: 6px 0 0 6px; }
+        /* 접힌 상태에선 드래그 리사이즈 대신 클릭=펼치기 */
+        body.norail #thumbhandle, body.notoc #tochandle { cursor: pointer; }
+        #thumbhandle { left: var(--thumbw); border-left: none; border-radius: 0 6px 6px 0; }
+        #tochandle { right: var(--tocw); border-right: none; border-radius: 6px 0 0 6px; }
         #thumbhandle::after { content: "\2039"; }      /* ‹ 접기(왼쪽으로) */
         #tochandle::after { content: "\203A"; }         /* › 접기(오른쪽으로) */
         body.norail #thumbhandle { left: 0; }
@@ -153,7 +165,8 @@
         /* 도구별 커서(페이지 위) */
         body.tool-hl .pp-page { cursor: text; }
         body.tool-box .pp-page { cursor: crosshair; }
-        body.tool-text .pp-page { cursor: text; }
+        /* 텍스트 도구: 커스텀 'T' 커서(흰 테두리로 어느 배경에서도 보이게). 폴백 text. */
+        body.tool-text .pp-page { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M5 5h13M11.5 5v14' fill='none' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M5 5h13M11.5 5v14' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") 5 5, text; }
         /* 형광펜 외 모드에선 주석(박스·텍스트)을 클릭 선택·이동·조작 */
         body:not(.tool-hl) .pp-annot { pointer-events: auto; }
         .pp-box { cursor: move; }
@@ -195,6 +208,8 @@
         <select id="paper">
           <option value="A4" selected>A4</option>
           <option value="A3">A3</option>
+          <option value="A2">A2</option>
+          <option value="A1">A1</option>
         </select>
       </label>
       <span class="fieldgroup">
@@ -210,9 +225,10 @@
     <div id="thumbrail"></div>
     <div id="tocrail"></div>
     <!-- 레일 접기 손잡이(chevron) — 상단 버튼 대체. 접혀도 화면 가장자리에 남아 재확장. -->
-    <div id="thumbhandle" class="rail-handle" title="썸네일 접기/펼치기"></div>
-    <div id="tochandle" class="rail-handle" title="목차 접기/펼치기"></div>
+    <div id="thumbhandle" class="rail-handle" title="드래그: 너비 조절 · 클릭: 썸네일 접기/펼치기"></div>
+    <div id="tochandle" class="rail-handle" title="드래그: 너비 조절 · 클릭: 목차 접기/펼치기"></div>
     <div id="pages"></div>
+    <div id="pagepill"></div>
     <script src="preview.js"></script>
   </body>
 </html>

@@ -12,14 +12,22 @@
   const railEl = $("thumbrail");
   const tocEl = $("tocrail");
 
-  const SIZES = { A4: { w: 210, h: 297 }, A3: { w: 297, h: 420 } }; // mm
+  const SIZES = { // mm
+    A4: { w: 210, h: 297 }, A3: { w: 297, h: 420 },
+    A2: { w: 420, h: 594 }, A1: { w: 594, h: 841 },
+  };
   const MM_PER_PX = 96 / 25.4; // 96dpi
 
-  // 상단 상태표시: "A4 · 12/25쪽 (⚠…)". 현재 페이지는 스크롤스파이가 갱신.
-  let totalPages = 0, paperLabel = "A4", overflowNote = "";
-  function renderStatus(cur) {
-    statusEl.textContent =
-      paperLabel + " · " + (cur ? cur + "/" : "") + totalPages + "쪽" + overflowNote;
+  // 상단 상태표시는 경고/진행만(용지=좌측 select, 페이지=하단 알약으로 분리).
+  // 하단 중앙 알약(#pagepill): 현재/전체 쪽 — 스크롤 시 떠서 잠시 뒤 사라짐(문서 뷰어 관례).
+  let totalPages = 0;
+  const pillEl = $("pagepill");
+  let pillTimer = null;
+  function updatePill(cur) { pillEl.textContent = (cur || 1) + " / " + totalPages + " 쪽"; }
+  function flashPill() {
+    pillEl.classList.add("show");
+    clearTimeout(pillTimer);
+    pillTimer = setTimeout(() => pillEl.classList.remove("show"), 1200);
   }
 
   // 좌측 레일에 각 페이지의 축소 클론(썸네일)을 그린다. paginate 끝에서 매번 리빌드.
@@ -31,7 +39,9 @@
     const pages = [...pagesEl.children];
     if (!pages.length) return; // 접힘 여부(norail)는 사용자 토글 소유 — 여기서 건드리지 않음
 
-    const THUMB_W = 130;
+    // 썸네일 폭 = 레일 너비(--thumbw)에 맞춤(레일 너비 드래그 조절 시 함께 커짐)
+    const railW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--thumbw")) || 176;
+    const THUMB_W = Math.max(70, Math.round(railW - 46));
     const k = THUMB_W / (sz.w * MM_PER_PX); // 페이지 실폭(px) → 썸네일 폭
     const frameH = Math.round(sz.h * MM_PER_PX * k);
     const pageStepPx = sz.h * MM_PER_PX + 12; // 페이지 1장 높이(px)+여백 — smooth/instant 분기 기준
@@ -40,8 +50,10 @@
     pages.forEach((pg, i) => {
       const item = document.createElement("div");
       item.className = "thumb";
+      item.style.width = THUMB_W + "px";
       const frame = document.createElement("div");
       frame.className = "thumb-frame";
+      frame.style.width = THUMB_W + "px";
       frame.style.height = frameH + "px";
       const clone = pg.cloneNode(true);
       clone.style.transform = `scale(${k})`;
@@ -78,7 +90,7 @@
       const item = pageToThumb.get(pg);
       if (item) item.classList.add("active"); // 강조 테두리만 — 레일 자동 스크롤은 안 함(덜컹 방지)
       const idx = pages.indexOf(pg);
-      if (idx >= 0) renderStatus(idx + 1); // 상단 nn/nn쪽 현재 페이지 갱신
+      if (idx >= 0) updatePill(idx + 1); // 하단 알약 현재/전체 갱신
     }
     const ratios = new Map();
     thumbIO = new IntersectionObserver((entries) => {
@@ -223,7 +235,7 @@
       "#toolbar{position:fixed!important;top:0!important;left:0!important;right:0!important;height:48px!important;" +
       "display:flex!important;align-items:center!important;background:#fff!important;z-index:2147483647!important;" +
       "border-bottom:1px solid #d0d0d5!important;padding:0 16px!important;}" +
-      "#pages{padding:64px 220px 40px 176px!important;}" +
+      "#pages{padding:64px var(--tocw) 40px var(--thumbw)!important;}" +
       "body.norail #pages{padding-left:0!important;}" +
       "body.notoc #pages{padding-right:0!important;}" +
       ".pp-page{margin:0 auto 12px!important;background:#fff!important;box-shadow:0 1px 6px rgba(0,0,0,.25)!important;}" +
@@ -280,8 +292,9 @@
 
     // 인쇄용 @page: 박스가 여백을 padding 으로 포함하므로 margin:0
     // + 한 페이지보다 큰 이미지는 페이지 안에 맞게 축소(잘림 방지)
+    // @page 는 명시적 mm 로(A2·A1 은 CSS 명명 크기에 없어 size:A2 가 안 먹음)
     pageRuleEl.textContent =
-      `@page { size: ${paper}; margin: 0; }` +
+      `@page { size: ${sz.w}mm ${sz.h}mm; margin: 0; }` +
       `.pp-page-inner img{max-width:100%!important;max-height:${contentH}px!important;height:auto!important;object-fit:contain;}`;
 
     // 소스를 화면 밖에 실제 폭으로 붙여 이미지 디코딩·레이아웃을 확정(측정 정확도 핵심)
@@ -443,21 +456,52 @@
 
     const n = pagesEl.children.length;
     totalPages = n;
-    paperLabel = paper;
-    overflowNote = overflowOne ? ` · ⚠ 한 페이지보다 큰 블록 ${overflowOne}개(잘림)` : "";
-    renderStatus(1); // 스크롤스파이(IO)가 곧 실제 현재 페이지로 보정
+    lastSz = sz; // 레일 리사이즈 후 썸네일 재생성에 사용
+    statusEl.textContent = overflowOne ? `⚠ 한 페이지보다 큰 블록 ${overflowOne}개(잘림)` : "";
+    updatePill(1); flashPill(); // 스크롤스파이(IO)가 곧 실제 현재 페이지로 보정
     buildThumbs(sz);
     buildToc();
     running = false;
   }
+  let lastSz = SIZES.A4;
 
   paperSel.addEventListener("change", paginate);
   marginVInp.addEventListener("change", paginate);
   marginHInp.addEventListener("change", paginate);
-  $("thumbhandle").addEventListener("click", () => document.body.classList.toggle("norail"));
-  $("tochandle").addEventListener("click", () => document.body.classList.toggle("notoc"));
-  // TOC 스크롤스파이 — rAF 스로틀로 현재 섹션 강조 갱신
+  // 레일 핸들: 드래그 = 너비 조절(--thumbw/--tocw), 그냥 클릭(<4px) = 접기 토글.
+  // (클릭/드래그 4px 임계 구분 기법 — AI_Dictionary 참고)
+  function setupHandle(handle, isLeft) {
+    const varName = isLeft ? "--thumbw" : "--tocw";
+    const bodyClass = isLeft ? "norail" : "notoc";
+    const MIN = 120, MAX = isLeft ? 360 : 460;
+    let sx = 0, sw = 0, active = false, moved = false;
+    handle.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      if (document.body.classList.contains(bodyClass)) { document.body.classList.remove(bodyClass); return; } // 접힘: 클릭=펼치기
+      active = true; moved = false; sx = e.clientX;
+      sw = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(varName)) || (isLeft ? 176 : 220);
+      e.preventDefault();
+    });
+    document.addEventListener("mousemove", (e) => {
+      if (!active) return;
+      const dx = e.clientX - sx;
+      if (Math.abs(dx) > 4) moved = true;
+      if (!moved) return;
+      const w = Math.max(MIN, Math.min(MAX, isLeft ? sw + dx : sw - dx));
+      document.documentElement.style.setProperty(varName, w + "px");
+    });
+    document.addEventListener("mouseup", () => {
+      if (!active) return;
+      active = false;
+      if (!moved) document.body.classList.toggle(bodyClass); // 클릭 = 접기 토글
+      else if (isLeft) buildThumbs(lastSz);                  // 리사이즈 = 썸네일 새 폭으로 재생성
+    });
+  }
+  setupHandle($("thumbhandle"), true);
+  setupHandle($("tochandle"), false);
+  // TOC 스크롤스파이 + 하단 알약 — rAF 스로틀
   window.addEventListener("scroll", () => {
+    flashPill(); // 스크롤 시 현재 페이지 알약 잠깐 표시
     if (tocRaf) return;
     tocRaf = requestAnimationFrame(() => { tocRaf = 0; updateTocSpy(); });
   }, { passive: true });
