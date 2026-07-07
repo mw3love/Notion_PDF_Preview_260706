@@ -6,12 +6,21 @@
   const pagesEl = $("pages");
   const statusEl = $("status");
   const paperSel = $("paper");
-  const marginInp = $("margin");
+  const marginVInp = $("marginV"); // 상하 여백(mm)
+  const marginHInp = $("marginH"); // 좌우 여백(mm)
   const pageRuleEl = $("pp-page-rule");
   const railEl = $("thumbrail");
+  const tocEl = $("tocrail");
 
   const SIZES = { A4: { w: 210, h: 297 }, A3: { w: 297, h: 420 } }; // mm
   const MM_PER_PX = 96 / 25.4; // 96dpi
+
+  // 상단 상태표시: "A4 · 12/25쪽 (⚠…)". 현재 페이지는 스크롤스파이가 갱신.
+  let totalPages = 0, paperLabel = "A4", overflowNote = "";
+  function renderStatus(cur) {
+    statusEl.textContent =
+      paperLabel + " · " + (cur ? cur + "/" : "") + totalPages + "쪽" + overflowNote;
+  }
 
   // 좌측 레일에 각 페이지의 축소 클론(썸네일)을 그린다. paginate 끝에서 매번 리빌드.
   // 이미지가 이미 data URL 로 인라인돼 있어 클론이 오프라인으로 완전히 렌더된다.
@@ -68,6 +77,8 @@
       railEl.querySelectorAll(".thumb.active").forEach((t) => t.classList.remove("active"));
       const item = pageToThumb.get(pg);
       if (item) item.classList.add("active"); // 강조 테두리만 — 레일 자동 스크롤은 안 함(덜컹 방지)
+      const idx = pages.indexOf(pg);
+      if (idx >= 0) renderStatus(idx + 1); // 상단 nn/nn쪽 현재 페이지 갱신
     }
     const ratios = new Map();
     thumbIO = new IntersectionObserver((entries) => {
@@ -78,6 +89,76 @@
       if (best) setActive(best);
     }, { root: null, rootMargin: "-48px 0px 0px 0px", threshold: [0, 0.25, 0.5, 0.75, 1] });
     pages.forEach((pg) => thumbIO.observe(pg));
+  }
+
+  // 우측 목차(TOC) 레일 — 조판된 페이지에서 헤딩 블록을 훑어 항목을 만든다.
+  // Notion 헤딩 = .notion-header-block(H1) / .notion-sub_header-block(H2) / .notion-sub_sub_header-block(H3).
+  // 클릭 시 해당 헤딩으로 스크롤. 스크롤 위치를 추적해 현재 섹션 항목을 강조(스크롤스파이).
+  const HEAD_SEL =
+    ".notion-header-block, .notion-sub_header-block, .notion-sub_sub_header-block";
+  let tocMap = []; // [{heading, item}] — DOM(=세로) 순서
+  let tocSpyLock = false, tocSpyTimer = null, tocRaf = 0;
+
+  function setTocActive(item) {
+    tocEl.querySelectorAll(".toc-item.active").forEach((t) => t.classList.remove("active"));
+    if (item) item.classList.add("active"); // 강조만 — 레일 자동 스크롤 안 함(좌측 레일과 동일: 덜컹 방지)
+  }
+  // 뷰포트 상단(툴바 아래)을 막 지난 마지막 헤딩 = 지금 읽는 섹션.
+  function updateTocSpy() {
+    if (tocSpyLock || !tocMap.length) return;
+    const line = 48 + 72; // 툴바(48) 아래로 약간 여유
+    let active = tocMap[0].item;
+    for (const { heading, item } of tocMap) {
+      if (heading.getBoundingClientRect().top <= line) active = item;
+      else break; // 헤딩은 세로 오름차순이라 첫 미달에서 중단
+    }
+    setTocActive(active);
+  }
+
+  function buildToc() {
+    tocEl.innerHTML = "";
+    tocMap = [];
+    const heads = [...pagesEl.querySelectorAll(HEAD_SEL)];
+    const items = [];
+    heads.forEach((h) => {
+      const text = (h.textContent || "").trim();
+      if (!text) return; // 빈 헤딩(플레이스홀더) 스킵
+      const lvl = h.classList.contains("notion-sub_sub_header-block")
+        ? 3
+        : h.classList.contains("notion-sub_header-block")
+        ? 2
+        : 1;
+      const item = document.createElement("div");
+      item.className = "toc-item lvl" + lvl;
+      item.textContent = text;
+      item.title = text;
+      item.addEventListener("click", () => {
+        setTocActive(item); // 클릭 즉시 목표 강조 → 중간 헤딩 거쳐가는 깜빡임 방지
+        const y = Math.max(0, h.getBoundingClientRect().top + window.scrollY - 56); // 툴바 아래로
+        const dist = Math.abs(y - window.scrollY);
+        if (dist <= 2) return;
+        if (dist <= 3 * window.innerHeight) {
+          // 가까운 이동은 부드럽게. 스크롤스파이 잠가 강조 흔들림 방지(scrollend/폴백에서 해제).
+          tocSpyLock = true;
+          clearTimeout(tocSpyTimer);
+          tocSpyTimer = setTimeout(() => { tocSpyLock = false; }, 1500);
+          window.scrollTo({ top: y, behavior: "smooth" });
+        } else {
+          window.scrollTo({ top: y, behavior: "auto" }); // 먼 이동은 순간이동
+        }
+      });
+      tocEl.appendChild(item);
+      items.push({ heading: h, item });
+    });
+    tocMap = items;
+    if (!items.length) {
+      const e = document.createElement("div");
+      e.className = "toc-empty";
+      e.textContent = "제목(헤딩)이 없습니다";
+      tocEl.appendChild(e);
+      return;
+    }
+    updateTocSpy();
   }
 
   const data = await chrome.storage.local.get("snapshot");
@@ -140,8 +221,9 @@
       "#toolbar{position:fixed!important;top:0!important;left:0!important;right:0!important;height:48px!important;" +
       "display:flex!important;align-items:center!important;background:#fff!important;z-index:2147483647!important;" +
       "border-bottom:1px solid #d0d0d5!important;padding:0 16px!important;}" +
-      "#pages{padding:64px 0 40px 176px!important;}" +
+      "#pages{padding:64px 220px 40px 176px!important;}" +
       "body.norail #pages{padding-left:0!important;}" +
+      "body.notoc #pages{padding-right:0!important;}" +
       ".pp-page{margin:0 auto 12px!important;background:#fff!important;box-shadow:0 1px 6px rgba(0,0,0,.25)!important;}" +
       "}";
     document.head.appendChild(o);
@@ -167,18 +249,18 @@
   async function paginate() {
     if (running) return;
     running = true;
-    $("repaginate").disabled = true;
     statusEl.textContent = "계산 중…";
 
     const paper = paperSel.value;
-    const m = Math.max(0, parseInt(marginInp.value, 10) || 0);
+    const mv = Math.max(0, parseInt(marginVInp.value, 10) || 0); // 상하
+    const mh = Math.max(0, parseInt(marginHInp.value, 10) || 0); // 좌우
     const sz = SIZES[paper] || SIZES.A4;
 
     // 페이지 박스는 mm 단위로 잡아 용지와 정확히 1:1 매칭(96dpi 반올림 넘침 방지).
     function makePage() {
       const pg = document.createElement("div");
       pg.className = "pp-page";
-      pg.style.cssText = `width:${sz.w}mm;height:${sz.h}mm;padding:${m}mm;box-sizing:border-box;overflow:hidden;`;
+      pg.style.cssText = `width:${sz.w}mm;height:${sz.h}mm;padding:${mv}mm ${mh}mm;box-sizing:border-box;overflow:hidden;`;
       const inner = document.createElement("div");
       inner.className = "pp-page-inner notion-page-content";
       inner.style.cssText = "height:100%;overflow:hidden;";
@@ -354,18 +436,29 @@
     wrap.remove();
 
     const n = pagesEl.children.length;
-    statusEl.textContent =
-      `${paper} · ${n}쪽` + (overflowOne ? ` · ⚠ 한 페이지보다 큰 블록 ${overflowOne}개(잘림)` : "");
+    totalPages = n;
+    paperLabel = paper;
+    overflowNote = overflowOne ? ` · ⚠ 한 페이지보다 큰 블록 ${overflowOne}개(잘림)` : "";
+    renderStatus(1); // 스크롤스파이(IO)가 곧 실제 현재 페이지로 보정
     buildThumbs(sz);
-    $("repaginate").disabled = false;
+    buildToc();
     running = false;
   }
 
   paperSel.addEventListener("change", paginate);
-  marginInp.addEventListener("change", paginate);
-  $("repaginate").addEventListener("click", paginate);
-  $("thumbtoggle").addEventListener("click", () => document.body.classList.toggle("norail"));
-  window.addEventListener("scrollend", () => { spyLock = false; clearTimeout(spyTimer); });
+  marginVInp.addEventListener("change", paginate);
+  marginHInp.addEventListener("change", paginate);
+  $("thumbhandle").addEventListener("click", () => document.body.classList.toggle("norail"));
+  $("tochandle").addEventListener("click", () => document.body.classList.toggle("notoc"));
+  // TOC 스크롤스파이 — rAF 스로틀로 현재 섹션 강조 갱신
+  window.addEventListener("scroll", () => {
+    if (tocRaf) return;
+    tocRaf = requestAnimationFrame(() => { tocRaf = 0; updateTocSpy(); });
+  }, { passive: true });
+  window.addEventListener("scrollend", () => {
+    spyLock = false; clearTimeout(spyTimer);
+    tocSpyLock = false; clearTimeout(tocSpyTimer); updateTocSpy();
+  });
   $("save").addEventListener("click", () => window.print());
 
   injectStyles();

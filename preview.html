@@ -18,13 +18,20 @@
         }
         #toolbar label { display: inline-flex; align-items: center; gap: 4px; }
         #toolbar select, #toolbar input { font-size: 13px; padding: 3px 6px; }
+        /* 여백 그룹: 상하·좌우가 같은 '여백' 항목임을 테두리로 묶어 표현 */
+        #toolbar .fieldgroup {
+          display: inline-flex; align-items: center; gap: 8px;
+          padding: 3px 9px; border: 1px solid #dcdce1; border-radius: 6px; background: #fafafb;
+        }
+        #toolbar .fieldgroup .fg-title { color: #444; font-weight: 600; }
+        #toolbar .fieldgroup .sub { color: #888; gap: 4px; }
         #toolbar button {
           font-size: 13px; padding: 5px 12px; cursor: pointer;
           border-radius: 5px; border: 1px solid #c0c0c6; background: #f6f6f8;
         }
         #toolbar button.primary { background: #2383e2; color: #fff; border-color: #2383e2; }
         #status { margin-left: auto; color: #666; }
-        #pages { padding: 64px 0 40px 176px; }
+        #pages { padding: 64px 220px 40px 176px; }
         .pp-page {
           background: #fff; margin: 0 auto 12px;
           box-shadow: 0 1px 6px rgba(0,0,0,.25);
@@ -59,12 +66,60 @@
         #thumbrail .thumb.active .thumb-num { color: #2383e2; font-weight: 600; }
         /* 레일 안의 페이지 클론은 주입 CSS의 !important 를 이 셀렉터(더 높은 특이성)로 무력화 */
         #thumbrail .pp-page { margin: 0 !important; box-shadow: none !important; }
+        /* 우측 목차(TOC) 레일 — 우측 빈 여백(gutter) 활용, 좌측 썸네일 레일과 대칭 */
+        #tocrail {
+          position: fixed; top: 48px; right: 0; bottom: 0; width: 220px;
+          box-sizing: border-box; padding: 10px 0; overflow-y: auto; overflow-x: hidden;
+          background: #f4f4f6; border-left: 1px solid #d0d0d5; z-index: 5;
+          overscroll-behavior: contain; /* 스크롤 끝에서 본문으로 휠 전파(튐) 차단 */
+          scrollbar-width: thin;
+          scrollbar-color: #97979f #e6e6ea;
+        }
+        #tocrail::-webkit-scrollbar { width: 10px !important; }
+        #tocrail::-webkit-scrollbar-track { background: #e6e6ea !important; }
+        #tocrail::-webkit-scrollbar-thumb { background: #b6b6be !important; border-radius: 5px; border: 2px solid #e6e6ea; min-height: 30px; }
+        #tocrail::-webkit-scrollbar-thumb:hover { background: #97979f !important; }
+        #tocrail .toc-head { font-size: 11px; color: #999; font-weight: 600; letter-spacing: .04em; padding: 4px 16px 8px; }
+        #tocrail .toc-item {
+          cursor: pointer; padding: 4px 14px 4px 16px; font-size: 13px; line-height: 1.4;
+          color: #3a3a3a; border-left: 2px solid transparent;
+          overflow-wrap: anywhere; /* 긴 제목이 레일 폭을 넘겨 가로 스크롤 만들지 않게 */
+          -webkit-font-smoothing: antialiased; /* 얇은 글씨 흐릿함 완화 */
+        }
+        #tocrail .toc-item:hover { background: #eaeaef; color: #111; }
+        #tocrail .toc-item.lvl2 { padding-left: 28px; font-size: 12.5px; color: #555; }
+        #tocrail .toc-item.lvl3 { padding-left: 40px; font-size: 12px; color: #6a6a70; }
+        #tocrail .toc-item.active {
+          color: #2383e2; border-left-color: #2383e2; background: #eef5fd; font-weight: 600;
+        }
+        #tocrail .toc-empty { padding: 16px; color: #999; font-size: 12px; text-align: center; }
+        /* 레일 접기 손잡이 — 레일 안쪽 가장자리에 붙은 탭. 접히면 화면 끝으로 이동. */
+        .rail-handle {
+          position: fixed; top: 76px; /* 툴바(48) 아래 상단 배치 */
+          width: 16px; height: 56px; z-index: 6;
+          display: flex; align-items: center; justify-content: center;
+          background: #e4e4ea; border: 1px solid #d0d0d5;
+          color: #8a8a92; cursor: pointer; font-size: 15px; line-height: 1;
+          transition: left .18s ease, right .18s ease, background .12s, color .12s;
+          user-select: none;
+        }
+        .rail-handle:hover { background: #d5d5dd; color: #444; }
+        #thumbhandle { left: 176px; border-left: none; border-radius: 0 6px 6px 0; }
+        #tochandle { right: 220px; border-right: none; border-radius: 6px 0 0 6px; }
+        #thumbhandle::after { content: "\2039"; }      /* ‹ 접기(왼쪽으로) */
+        #tochandle::after { content: "\203A"; }         /* › 접기(오른쪽으로) */
+        body.norail #thumbhandle { left: 0; }
+        body.norail #thumbhandle::after { content: "\203A"; } /* › 펼치기 */
+        body.notoc #tochandle { right: 0; }
+        body.notoc #tochandle::after { content: "\2039"; }    /* ‹ 펼치기 */
         /* 레일 접힘 */
         body.norail #thumbrail { display: none; }
         body.norail #pages { padding-left: 0 !important; }
+        body.notoc #tocrail { display: none; }
+        body.notoc #pages { padding-right: 0 !important; }
       }
       @media print {
-        #toolbar, #thumbrail { display: none !important; }
+        #toolbar, #thumbrail, #tocrail, .rail-handle { display: none !important; }
         #pages { padding: 0 !important; }
         .pp-page { margin: 0 !important; box-shadow: none !important; break-after: page; }
         .pp-page:last-child { break-after: auto; }
@@ -82,15 +137,20 @@
           <option value="A3">A3</option>
         </select>
       </label>
-      <label>여백
-        <input id="margin" type="number" value="20" min="0" max="60" step="1" style="width: 4em" /> mm
-      </label>
-      <button id="repaginate">다시 계산</button>
-      <button id="thumbtoggle">썸네일</button>
-      <button id="save" class="primary">PDF로 저장</button>
+      <span class="fieldgroup">
+        <span class="fg-title">여백</span>
+        <label class="sub">상하 <input id="marginV" type="number" value="20" min="0" max="60" step="1" style="width: 4em" /></label>
+        <label class="sub">좌우 <input id="marginH" type="number" value="20" min="0" max="60" step="1" style="width: 4em" /></label>
+        <span class="sub">mm</span>
+      </span>
       <span id="status">불러오는 중…</span>
+      <button id="save" class="primary">PDF로 저장</button>
     </div>
     <div id="thumbrail"></div>
+    <div id="tocrail"></div>
+    <!-- 레일 접기 손잡이(chevron) — 상단 버튼 대체. 접혀도 화면 가장자리에 남아 재확장. -->
+    <div id="thumbhandle" class="rail-handle" title="썸네일 접기/펼치기"></div>
+    <div id="tochandle" class="rail-handle" title="목차 접기/펼치기"></div>
     <div id="pages"></div>
     <script src="preview.js"></script>
   </body>
