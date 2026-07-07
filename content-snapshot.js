@@ -135,6 +135,52 @@
   const imgDone = await inlineImages(root, clone);
   log("이미지 인라인:", imgDone + "/" + clone.querySelectorAll("img").length);
 
+  // 3.6) inline style 배경 url() 인라인화 — Notion 이모지(✅ 등)는 <img class=notion-emoji> 의
+  //   style="background:url(/images/emoji/...webp)" 상대경로 스프라이트로 그려진다. 상대경로라
+  //   미리보기(chrome-extension 출처)에서 확장 폴더 기준으로 해석돼 404 → 화면·PDF 모두 빈 칸.
+  //   스프라이트는 notion.so 동일 출처라 콘텐츠 스크립트가 직접 fetch해 data URL 로 박제(CORS 불요).
+  //   (background-position/size 등 나머지 style 은 보존 — url() 토큰만 치환.)
+  async function inlineStyleBgUrls(cloneRoot) {
+    const els = [...cloneRoot.querySelectorAll('[style*="url("]')];
+    const urlRe = /url\(\s*(['"]?)([^'")]+)\1\s*\)/g;
+    const urls = new Set();
+    for (const el of els) {
+      const style = el.getAttribute("style") || "";
+      let m;
+      while ((m = urlRe.exec(style))) {
+        const raw = m[2].trim();
+        if (raw.startsWith("data:")) continue;
+        try { urls.add(new URL(raw, location.href).href); } catch (e) {}
+      }
+    }
+    if (!urls.size) return 0;
+    const map = {};
+    for (const u of urls) {
+      try {
+        const blob = await fetch(u).then((r) => (r.ok ? r.blob() : Promise.reject(r.status)));
+        map[u] = await new Promise((res, rej) => {
+          const fr = new FileReader();
+          fr.onload = () => res(fr.result);
+          fr.onerror = rej;
+          fr.readAsDataURL(blob);
+        });
+      } catch (e) { log("배경 url 인라인 실패(무시):", u, e); }
+    }
+    let done = 0;
+    for (const el of els) {
+      const style = el.getAttribute("style") || "";
+      const next = style.replace(urlRe, (full, q, raw) => {
+        let abs;
+        try { abs = new URL(raw.trim(), location.href).href; } catch (e) { return full; }
+        return map[abs] ? `url("${map[abs]}")` : full;
+      });
+      if (next !== style) { el.setAttribute("style", next); done++; }
+    }
+    return done;
+  }
+  const bgDone = await inlineStyleBgUrls(clone);
+  log("배경 url 인라인:", bgDone);
+
   // 4) CSS 수집: <link> 는 동일 출처 fetch로 텍스트화(교차출처 CORP 차단 회피), <style> 는 내용 그대로.
   //    href(base)를 보존해 상대 url()(폰트/이미지)이 미리보기에서 절대 경로로 해석되도록 함.
   const cssList = [];

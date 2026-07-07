@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Notion 페이지 나눔 미리보기",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "내보내기 전에 Notion 페이지를 A4/A3 쪽 단위로 미리보기 — 어느 줄이 몇 페이지에 들어가는지 눈으로 확인.",
   "permissions": ["scripting", "storage", "unlimitedStorage", "activeTab"],
   "host_permissions": [

@@ -49,6 +49,10 @@
     const o = document.createElement("style");
     o.setAttribute("data-pp-style", "1");
     o.textContent =
+      // Notion 인라인 이모지(✅ 등)는 background-image 스프라이트라, Chrome이 인쇄 시 배경을
+      // 안 그려 PDF에서 폭(공백)만 남고 사라진다. print-color-adjust:exact 로 배경 출력을 강제
+      // (콜아웃 배경색·하이라이트도 함께 인쇄되어 화면=출력 정확도↑).
+      ".pp-page *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}" +
       ".pp-page .notion-page-content{width:100%!important;max-width:none!important;padding:0!important;margin:0!important;}" +
       ".pp-page-inner > *{max-width:100%;}" +
       // 표를 본문 폭에 맞춰 축소(Notion 표는 컬럼 고정 px 라 여백 크면 오른쪽이 잘림).
