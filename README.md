@@ -57,7 +57,8 @@ Notion의 기본 PDF 내보내기는 서버에서 렌더링되어, 내보내기 
 
 | 파일 | 역할 |
 |---|---|
-| `manifest.json` | MV3 매니페스트 (권한·액션) |
+| `manifest.json` | MV3 매니페스트 (권한·액션·아이콘) |
 | `background.js` | 서비스워커: 버튼 클릭 시 스냅샷 주입, 이미지 fetch(CORS 우회) |
 | `content-snapshot.js` | Notion 페이지에서 본문+CSS 스냅샷, 이미지 인라인 위임 |
 | `preview.html` / `preview.js` | 미리보기 UI + 자체 페이지 분할기 + 인쇄 |
+| `icons/` | 툴바 아이콘 PNG(16·32·48·128) + 편집용 SVG 소스. 16·32는 디테일을 덜어낸 `icon-small.svg`, 48·128은 `icon.svg` |

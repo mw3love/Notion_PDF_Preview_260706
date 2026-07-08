@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Notion 페이지 나눔 미리보기",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "description": "내보내기 전에 Notion 페이지를 A4~A1 쪽 단위로 미리보기 + 형광펜·네모·텍스트 주석을 얹어 PDF 저장.",
   "permissions": ["scripting", "storage", "unlimitedStorage", "activeTab"],
   "host_permissions": [
@@ -12,7 +12,19 @@
   "background": {
     "service_worker": "background.js"
   },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "action": {
-    "default_title": "페이지 나눔 미리보기 (Notion 페이지에서 클릭)"
+    "default_title": "페이지 나눔 미리보기 (Notion 페이지에서 클릭)",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   }
 }
