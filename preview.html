@@ -126,13 +126,22 @@
           width: 16px; height: 56px; z-index: 6;
           display: flex; align-items: center; justify-content: center;
           background: #e4e4ea; border: 1px solid #d0d0d5;
-          color: #8a8a92; cursor: col-resize; font-size: 15px; line-height: 1;
+          color: #8a8a92; cursor: pointer; font-size: 15px; line-height: 1;
           transition: background .12s, color .12s;
           user-select: none;
         }
         .rail-handle:hover { background: #d5d5dd; color: #444; }
-        /* 접힌 상태에선 드래그 리사이즈 대신 클릭=펼치기 */
-        body.norail #thumbhandle, body.notoc #tochandle { cursor: pointer; }
+        /* 레일 안쪽 테두리 전체 = 너비 조절 그립(썸네일=우측 스크롤바쪽, 목차=좌측 테두리).
+           스크롤바와 안 겹치게 테두리 바로 바깥(#pages 여백)에 붙인다. */
+        .rail-resize {
+          position: fixed; top: 48px; bottom: 0; width: 8px; z-index: 5;
+          cursor: col-resize; background: transparent; transition: background .12s;
+        }
+        .rail-resize:hover, body.resizing .rail-resize { background: rgba(35,131,226,.28); }
+        #thumbresize { left: var(--thumbw); }
+        #tocresize { right: var(--tocw); }
+        body.norail #thumbresize, body.notoc #tocresize { display: none; }
+        body.resizing { user-select: none; cursor: col-resize; }
         #thumbhandle { left: var(--thumbw); border-left: none; border-radius: 0 6px 6px 0; }
         #tochandle { right: var(--tocw); border-right: none; border-radius: 6px 0 0 6px; }
         #thumbhandle::after { content: "\2039"; }      /* ‹ 접기(왼쪽으로) */
@@ -165,8 +174,9 @@
         /* 도구별 커서(페이지 위) */
         body.tool-hl .pp-page { cursor: text; }
         body.tool-box .pp-page { cursor: crosshair; }
-        /* 텍스트 도구: 커스텀 'T' 커서(흰 테두리로 어느 배경에서도 보이게). 폴백 text. */
-        body.tool-text .pp-page { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M5 5h13M11.5 5v14' fill='none' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M5 5h13M11.5 5v14' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") 5 5, text; }
+        /* 텍스트 도구: 클래식 I-beam(아이빔) + 우하단 작은 'T' 배지(텍스트 도구 표시).
+           흰 후광(3.5)+검정 잉크(1.6)로 어느 배경에서도 보이게. 핫스팟=아이빔 중심(8,10). 폴백 text. */
+        body.tool-text .pp-page { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Cpath d='M8 3v14M5 3h6M5 17h6M15 15h7M18.5 15v7' fill='none' stroke='%23fff' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M8 3v14M5 3h6M5 17h6M15 15h7M18.5 15v7' fill='none' stroke='%23222' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 8 10, text; }
         /* 형광펜 외 모드에선 주석(박스·텍스트)을 클릭 선택·이동·조작 */
         body:not(.tool-hl) .pp-annot { pointer-events: auto; }
         .pp-box { cursor: move; }
@@ -190,7 +200,7 @@
         body.notoc #pages { padding-right: 0 !important; }
       }
       @media print {
-        #toolbar, #thumbrail, #tocrail, .rail-handle { display: none !important; }
+        #toolbar, #thumbrail, #tocrail, .rail-handle, .rail-resize { display: none !important; }
         .pp-box .bh { display: none !important; }        /* 선택 핸들은 인쇄 안 함 */
         .pp-annot.sel, .pp-text { outline: none !important; } /* 선택/텍스트 점선 테두리 인쇄 안 함 */
         #pages { padding: 0 !important; }
@@ -224,9 +234,12 @@
     </div>
     <div id="thumbrail"></div>
     <div id="tocrail"></div>
-    <!-- 레일 접기 손잡이(chevron) — 상단 버튼 대체. 접혀도 화면 가장자리에 남아 재확장. -->
-    <div id="thumbhandle" class="rail-handle" title="드래그: 너비 조절 · 클릭: 썸네일 접기/펼치기"></div>
-    <div id="tochandle" class="rail-handle" title="드래그: 너비 조절 · 클릭: 목차 접기/펼치기"></div>
+    <!-- 레일 접기 손잡이(chevron) — 클릭으로 접기/펼치기. 접혀도 화면 가장자리에 남아 재확장. -->
+    <div id="thumbhandle" class="rail-handle" title="클릭: 썸네일 접기/펼치기"></div>
+    <div id="tochandle" class="rail-handle" title="클릭: 목차 접기/펼치기"></div>
+    <!-- 레일 안쪽 테두리 전체 = 드래그로 너비 조절(썸네일=스크롤바쪽, 목차=왼쪽 테두리) -->
+    <div id="thumbresize" class="rail-resize" title="드래그: 썸네일 레일 너비 조절"></div>
+    <div id="tocresize" class="rail-resize" title="드래그: 목차 레일 너비 조절"></div>
     <div id="pages"></div>
     <div id="pagepill"></div>
     <script src="preview.js"></script>

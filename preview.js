@@ -468,37 +468,40 @@
   paperSel.addEventListener("change", paginate);
   marginVInp.addEventListener("change", paginate);
   marginHInp.addEventListener("change", paginate);
-  // 레일 핸들: 드래그 = 너비 조절(--thumbw/--tocw), 그냥 클릭(<4px) = 접기 토글.
-  // (클릭/드래그 4px 임계 구분 기법 — AI_Dictionary 참고)
-  function setupHandle(handle, isLeft) {
+  // 레일 접기 손잡이(chevron): 클릭 = 접기/펼치기 토글(너비 조절은 테두리 리사이즈 바가 담당).
+  $("thumbhandle").addEventListener("click", () => document.body.classList.toggle("norail"));
+  $("tochandle").addEventListener("click", () => document.body.classList.toggle("notoc"));
+
+  // 레일 안쪽 테두리 전체를 드래그 = 너비 조절(썸네일=우측 스크롤바쪽, 목차=좌측 테두리).
+  // 조절 중엔 body.resizing 으로 텍스트 선택 차단. 썸네일은 드래그 중 실시간으로 새 폭에 맞춰
+  // 다시 그린다 — 단 buildThumbs 가 전체 페이지를 클론하는 무거운 작업이라 rAF 로 프레임당 1회 스로틀.
+  function setupResize(bar, isLeft) {
     const varName = isLeft ? "--thumbw" : "--tocw";
-    const bodyClass = isLeft ? "norail" : "notoc";
     const MIN = 120, MAX = isLeft ? 360 : 460;
-    let sx = 0, sw = 0, active = false, moved = false;
-    handle.addEventListener("mousedown", (e) => {
+    let sx = 0, sw = 0, active = false, raf = 0;
+    bar.addEventListener("mousedown", (e) => {
       if (e.button !== 0) return;
-      if (document.body.classList.contains(bodyClass)) { document.body.classList.remove(bodyClass); return; } // 접힘: 클릭=펼치기
-      active = true; moved = false; sx = e.clientX;
+      active = true; sx = e.clientX;
       sw = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(varName)) || (isLeft ? 176 : 220);
+      document.body.classList.add("resizing");
       e.preventDefault();
     });
     document.addEventListener("mousemove", (e) => {
       if (!active) return;
       const dx = e.clientX - sx;
-      if (Math.abs(dx) > 4) moved = true;
-      if (!moved) return;
       const w = Math.max(MIN, Math.min(MAX, isLeft ? sw + dx : sw - dx));
       document.documentElement.style.setProperty(varName, w + "px");
+      if (isLeft && !raf) raf = requestAnimationFrame(() => { raf = 0; buildThumbs(lastSz); }); // 실시간 미리보기
     });
     document.addEventListener("mouseup", () => {
       if (!active) return;
       active = false;
-      if (!moved) document.body.classList.toggle(bodyClass); // 클릭 = 접기 토글
-      else if (isLeft) buildThumbs(lastSz);                  // 리사이즈 = 썸네일 새 폭으로 재생성
+      document.body.classList.remove("resizing");
+      if (isLeft) { if (raf) { cancelAnimationFrame(raf); raf = 0; } buildThumbs(lastSz); } // 최종 폭으로 확정
     });
   }
-  setupHandle($("thumbhandle"), true);
-  setupHandle($("tochandle"), false);
+  setupResize($("thumbresize"), true);
+  setupResize($("tocresize"), false);
   // TOC 스크롤스파이 + 하단 알약 — rAF 스로틀
   window.addEventListener("scroll", () => {
     flashPill(); // 스크롤 시 현재 페이지 알약 잠깐 표시
