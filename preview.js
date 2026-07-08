@@ -19,7 +19,7 @@
   const MM_PER_PX = 96 / 25.4; // 96dpi
 
   // 상단 상태표시는 경고/진행만(용지=좌측 select, 페이지=상단 알약으로 분리).
-  // 상단바 아래 중앙 알약(#pagepill): 현재/전체 쪽 — 상시 고정 표시, 스크롤스파이가 텍스트만 갱신.
+  // 상단바 정중앙 알약(#pagepill): 현재/전체 쪽 — 상시 표시, 스크롤스파이가 텍스트만 갱신.
   let totalPages = 0;
   const pillEl = $("pagepill");
   function updatePill(cur) { pillEl.textContent = (cur || 1) + " / " + totalPages + " 쪽"; }
@@ -84,7 +84,7 @@
       const item = pageToThumb.get(pg);
       if (item) item.classList.add("active"); // 강조 테두리만 — 레일 자동 스크롤은 안 함(덜컹 방지)
       const idx = pages.indexOf(pg);
-      if (idx >= 0) updatePill(idx + 1); // 하단 알약 현재/전체 갱신
+      if (idx >= 0) updatePill(idx + 1); // 알약 현재/전체 갱신
     }
     const ratios = new Map();
     thumbIO = new IntersectionObserver((entries) => {
@@ -673,10 +673,13 @@
     const r = page.getBoundingClientRect();
     const el = document.createElement("div");
     el.className = "pp-annot pp-text";
-    el.style.left = Math.max(0, e.clientX - r.left) + "px";
-    el.style.top = Math.max(0, e.clientY - r.top) + "px";
+    const fs = parseInt(fontSzInp.value, 10) || 16;
+    // 클릭점 = I-beam 커서 세로 막대의 중앙(hotspot). 텍스트 줄 중앙을 여기에 맞춘다.
+    // top = 클릭Y - (padding-top 1px + line-height/2). CSS: padding 1px 2px, line-height 1.3.
+    el.style.left = Math.max(0, e.clientX - r.left - 2) + "px";     // padding-left 2px 보정
+    el.style.top = Math.max(0, e.clientY - r.top - (1 + fs * 1.3 / 2)) + "px";
     el.style.color = toolColor.text;
-    el.style.fontSize = (parseInt(fontSzInp.value, 10) || 16) + "px";
+    el.style.fontSize = fs + "px";
     el.addEventListener("blur", () => endEdit(el));
     page.appendChild(el);
     selectObj(el);
@@ -703,6 +706,7 @@
     const s = window.getSelection(); if (s) s.removeAllRanges(); // 남은 캐럿 제거
     el.blur();
     if (!el.textContent.trim()) { if (selectedObj === el) deselectObj(); el.remove(); } // 빈 텍스트 제거
+    else if (selectedObj === el) deselectObj(); // 커밋 후 선택 해제 → 파란 테두리 없이 글자만
   }
 
   pagesEl.addEventListener("mousedown", (e) => {

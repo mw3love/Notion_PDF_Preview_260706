@@ -51,12 +51,12 @@
         #toolbar button.primary { background: #2383e2; color: #fff; border-color: #2383e2; }
         #status { margin-left: auto; color: #666; }
         #pages { padding: 64px var(--tocw) 40px var(--thumbw); }
-        /* 현재 페이지 인디케이터 — 상단바 바로 아래 중앙에 상시 고정 표시 */
+        /* 현재 페이지 인디케이터 — 상단바 정중앙에 고정(flex 흐름에서 빼 툴바 기준 절대 중앙). */
         #pagepill {
-          position: fixed; top: 58px; left: 50%; transform: translateX(-50%);
-          background: rgba(28,28,30,.78); color: #fff; font-size: 13px; font-weight: 600;
-          padding: 5px 14px; border-radius: 999px; z-index: 8; pointer-events: none;
-          box-shadow: 0 3px 12px rgba(0,0,0,.3); letter-spacing: .03em;
+          position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+          background: rgba(28,28,30,.78); color: #fff; font-size: 12px; font-weight: 600;
+          padding: 4px 12px; border-radius: 999px; letter-spacing: .03em; white-space: nowrap;
+          pointer-events: none; /* 텍스트 표시만 — 뒤 요소 클릭 방해 안 함 */
         }
         .pp-page {
           background: #fff; margin: 0 auto 12px;
@@ -112,8 +112,8 @@
         #tocrail .toc-empty { padding: 16px; color: #999; font-size: 12px; text-align: center; }
         /* 레일 접기 손잡이 — 레일 안쪽 가장자리에 붙은 탭. 접히면 화면 끝으로 이동. */
         .rail-handle {
-          position: fixed; top: 48px; /* 툴바(48) 바로 아래에 붙임 */
-          width: 18px; height: 132px; z-index: 6; /* 클릭 편하도록 상단바까지 위로·길게 */
+          position: fixed; top: 50%; transform: translateY(-50%); /* 레일 세로 중앙 */
+          width: 18px; height: 132px; z-index: 6;
           display: flex; align-items: center; justify-content: center;
           background: #e4e4ea; border: 1px solid #d0d0d5;
           color: #8a8a92; cursor: pointer; font-size: 15px; line-height: 1;
@@ -132,8 +132,8 @@
         #tocresize { right: var(--tocw); }
         body.norail #thumbresize, body.notoc #tocresize { display: none; }
         body.resizing { user-select: none; cursor: col-resize; }
-        #thumbhandle { left: var(--thumbw); border-left: none; border-radius: 0 0 6px 0; } /* 위=툴바에 붙어 각지게, 아래 바깥만 둥글게 */
-        #tochandle { right: var(--tocw); border-right: none; border-radius: 0 0 0 6px; }
+        #thumbhandle { left: var(--thumbw); border-left: none; border-radius: 0 6px 6px 0; } /* 바깥(오른쪽)만 둥근 탭 */
+        #tochandle { right: var(--tocw); border-right: none; border-radius: 6px 0 0 6px; }  /* 바깥(왼쪽)만 둥근 탭 */
         #thumbhandle::after { content: "\2039"; }      /* ‹ 접기(왼쪽으로) */
         #tochandle::after { content: "\203A"; }         /* › 접기(오른쪽으로) */
         body.norail #thumbhandle { left: 0; }
@@ -170,7 +170,8 @@
         /* 형광펜 외 모드에선 주석(박스·텍스트)을 클릭 선택·이동·조작 */
         body:not(.tool-hl) .pp-annot { pointer-events: auto; }
         .pp-box { cursor: move; }
-        .pp-text { cursor: move; outline: 1px dashed rgba(0,0,0,.28); outline-offset: 1px; } /* 위치는 화면에서만 표시 */
+        .pp-text { cursor: move; outline-offset: 1px; } /* 평소엔 글자만(테두리 없음) */
+        body:not(.tool-hl) .pp-text:hover, .pp-text.editing { outline: 1px dashed rgba(0,0,0,.28); } /* hover·편집 중에만 점선 박스 */
         .pp-text.editing { cursor: text; }
         .pp-annot.sel { outline: 1px solid #2383e2 !important; }
         .pp-box .bh { position: absolute; width: 9px; height: 9px; background: #fff;
@@ -221,6 +222,7 @@
       <span class="fieldgroup annot" id="annot"></span>
       <span id="status">불러오는 중…</span>
       <button id="save" class="primary">PDF로 저장</button>
+      <div id="pagepill"></div>
     </div>
     <div id="thumbrail"></div>
     <div id="tocrail"></div>
@@ -231,7 +233,6 @@
     <div id="thumbresize" class="rail-resize" title="드래그: 썸네일 레일 너비 조절"></div>
     <div id="tocresize" class="rail-resize" title="드래그: 목차 레일 너비 조절"></div>
     <div id="pages"></div>
-    <div id="pagepill"></div>
     <script src="preview.js"></script>
   </body>
 </html>
