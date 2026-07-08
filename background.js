@@ -40,7 +40,13 @@ function blobToDataUrl(blob) {
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg && msg.type === "open-preview") {
-    chrome.tabs.create({ url: chrome.runtime.getURL("preview.html") });
+    const opener = sender.tab; // 메시지를 보낸 원본 Notion 탭
+    chrome.tabs.create({
+      url: chrome.runtime.getURL("preview.html"),
+      openerTabId: opener ? opener.id : undefined, // "이 탭에서 파생됨" 관계
+      index: opener ? opener.index + 1 : undefined, // 원본 바로 오른쪽
+      windowId: opener ? opener.windowId : undefined, // 같은 창에 확실히
+    });
     return;
   }
   // 이미지 프록시 fetch: 콘텐츠 스크립트는 CORS 제약(프록시=쿠키 필요, 리다이렉트된 S3=credentialed CORS 거부)
