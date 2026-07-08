@@ -21,7 +21,8 @@
       }
       @media screen {
         body {
-          background: #e9e9ec;
+          background: #adadb4; /* 문서 양옆 빈 여백(캔버스) — 흰 페이지와 이어지는 중간 회색(툴바·레일·페이지는 원안 라이트 유지).
+                                  실제 표시는 injectStyles 의 !important 규칙이 결정(preview.js)하므로 그쪽도 함께 맞춤 */
           font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
         }
         /* 창 전체 스크롤바를 오버레이(hover 전용)가 아니라 상시 표시로 강제(위치 항상 보이게).
@@ -50,15 +51,13 @@
         #toolbar button.primary { background: #2383e2; color: #fff; border-color: #2383e2; }
         #status { margin-left: auto; color: #666; }
         #pages { padding: 64px var(--tocw) 40px var(--thumbw); }
-        /* 현재 페이지 인디케이터 — 하단 중앙, 스크롤 시 뜨고 잠시 후 사라짐 */
+        /* 현재 페이지 인디케이터 — 상단바 바로 아래 중앙에 상시 고정 표시 */
         #pagepill {
-          position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+          position: fixed; top: 58px; left: 50%; transform: translateX(-50%);
           background: rgba(28,28,30,.78); color: #fff; font-size: 13px; font-weight: 600;
-          padding: 6px 14px; border-radius: 999px; z-index: 8; pointer-events: none;
+          padding: 5px 14px; border-radius: 999px; z-index: 8; pointer-events: none;
           box-shadow: 0 3px 12px rgba(0,0,0,.3); letter-spacing: .03em;
-          opacity: 0; transition: opacity .3s ease;
         }
-        #pagepill.show { opacity: 1; }
         .pp-page {
           background: #fff; margin: 0 auto 12px;
           box-shadow: 0 1px 6px rgba(0,0,0,.25);
@@ -69,16 +68,11 @@
           box-sizing: border-box; padding: 12px 0; overflow-y: auto; overflow-x: hidden;
           background: #f4f4f6; border-right: 1px solid #d0d0d5; z-index: 5;
           overscroll-behavior: contain; /* 스크롤 끝에서 본문으로 휠 전파(튐) 차단 */
-          /* 표준 속성 — Notion CSS가 scrollbar-width 를 걸면 ::-webkit-scrollbar 는 무시되므로
-             여기서 직접 지정해 오버레이(hover 전용) 대신 색 입힌 상시 스크롤바로 강제 */
-          scrollbar-width: thin;
-          scrollbar-color: #97979f #e6e6ea;
+          /* 창 전체 스크롤바(html 규칙)와 동일하게: scrollbar-color 만 지정 →
+             Blink 가 오버레이 대신 클래식 폭(넓게)의 상시 스크롤바를 그린다.
+             (scrollbar-width:thin·::-webkit 폭 지정은 좁아지므로 쓰지 않음) */
+          scrollbar-color: #b3b3ba #ececef;
         }
-        /* 위 표준 속성이 안 먹는 브라우저용 폴백(webkit) */
-        #thumbrail::-webkit-scrollbar { width: 10px !important; }
-        #thumbrail::-webkit-scrollbar-track { background: #e6e6ea !important; }
-        #thumbrail::-webkit-scrollbar-thumb { background: #b6b6be !important; border-radius: 5px; border: 2px solid #e6e6ea; min-height: 30px; }
-        #thumbrail::-webkit-scrollbar-thumb:hover { background: #97979f !important; }
         #thumbrail .thumb {
           cursor: pointer; margin: 0 auto 10px; width: 130px;
         }
@@ -99,13 +93,9 @@
           box-sizing: border-box; padding: 10px 0; overflow-y: auto; overflow-x: hidden;
           background: #f4f4f6; border-left: 1px solid #d0d0d5; z-index: 5;
           overscroll-behavior: contain; /* 스크롤 끝에서 본문으로 휠 전파(튐) 차단 */
-          scrollbar-width: thin;
-          scrollbar-color: #97979f #e6e6ea;
+          /* 썸네일 레일과 동일 — 전체 스크롤바와 폭·색 맞춤(scrollbar-color 만 지정) */
+          scrollbar-color: #b3b3ba #ececef;
         }
-        #tocrail::-webkit-scrollbar { width: 10px !important; }
-        #tocrail::-webkit-scrollbar-track { background: #e6e6ea !important; }
-        #tocrail::-webkit-scrollbar-thumb { background: #b6b6be !important; border-radius: 5px; border: 2px solid #e6e6ea; min-height: 30px; }
-        #tocrail::-webkit-scrollbar-thumb:hover { background: #97979f !important; }
         #tocrail .toc-head { font-size: 11px; color: #999; font-weight: 600; letter-spacing: .04em; padding: 4px 16px 8px; }
         #tocrail .toc-item {
           cursor: pointer; padding: 4px 14px 4px 16px; font-size: 13px; line-height: 1.4;
@@ -122,8 +112,8 @@
         #tocrail .toc-empty { padding: 16px; color: #999; font-size: 12px; text-align: center; }
         /* 레일 접기 손잡이 — 레일 안쪽 가장자리에 붙은 탭. 접히면 화면 끝으로 이동. */
         .rail-handle {
-          position: fixed; top: 76px; /* 툴바(48) 아래 상단 배치 */
-          width: 16px; height: 56px; z-index: 6;
+          position: fixed; top: 48px; /* 툴바(48) 바로 아래에 붙임 */
+          width: 18px; height: 132px; z-index: 6; /* 클릭 편하도록 상단바까지 위로·길게 */
           display: flex; align-items: center; justify-content: center;
           background: #e4e4ea; border: 1px solid #d0d0d5;
           color: #8a8a92; cursor: pointer; font-size: 15px; line-height: 1;
@@ -142,8 +132,8 @@
         #tocresize { right: var(--tocw); }
         body.norail #thumbresize, body.notoc #tocresize { display: none; }
         body.resizing { user-select: none; cursor: col-resize; }
-        #thumbhandle { left: var(--thumbw); border-left: none; border-radius: 0 6px 6px 0; }
-        #tochandle { right: var(--tocw); border-right: none; border-radius: 6px 0 0 6px; }
+        #thumbhandle { left: var(--thumbw); border-left: none; border-radius: 0 0 6px 0; } /* 위=툴바에 붙어 각지게, 아래 바깥만 둥글게 */
+        #tochandle { right: var(--tocw); border-right: none; border-radius: 0 0 0 6px; }
         #thumbhandle::after { content: "\2039"; }      /* ‹ 접기(왼쪽으로) */
         #tochandle::after { content: "\203A"; }         /* › 접기(오른쪽으로) */
         body.norail #thumbhandle { left: 0; }

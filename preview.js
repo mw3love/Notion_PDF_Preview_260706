@@ -18,17 +18,11 @@
   };
   const MM_PER_PX = 96 / 25.4; // 96dpi
 
-  // 상단 상태표시는 경고/진행만(용지=좌측 select, 페이지=하단 알약으로 분리).
-  // 하단 중앙 알약(#pagepill): 현재/전체 쪽 — 스크롤 시 떠서 잠시 뒤 사라짐(문서 뷰어 관례).
+  // 상단 상태표시는 경고/진행만(용지=좌측 select, 페이지=상단 알약으로 분리).
+  // 상단바 아래 중앙 알약(#pagepill): 현재/전체 쪽 — 상시 고정 표시, 스크롤스파이가 텍스트만 갱신.
   let totalPages = 0;
   const pillEl = $("pagepill");
-  let pillTimer = null;
   function updatePill(cur) { pillEl.textContent = (cur || 1) + " / " + totalPages + " 쪽"; }
-  function flashPill() {
-    pillEl.classList.add("show");
-    clearTimeout(pillTimer);
-    pillTimer = setTimeout(() => pillEl.classList.remove("show"), 1200);
-  }
 
   // 좌측 레일에 각 페이지의 축소 클론(썸네일)을 그린다. paginate 끝에서 매번 리빌드.
   // 이미지가 이미 data URL 로 인라인돼 있어 클론이 오프라인으로 완전히 렌더된다.
@@ -231,7 +225,7 @@
       "@media screen{" +
       // 창 스크롤바 상시 표시(오버레이 방지)·기본 폭 — Notion CSS가 걸어도 이게 뒤에 와서 이김
       "html{scrollbar-color:#b3b3ba #ececef!important;scrollbar-width:auto!important;}" +
-      "body{background:#e9e9ec!important;}" +
+      "body{background:#adadb4!important;}" + // 문서 양옆 빈 여백(캔버스) — 흰 페이지와 이어지는 중간 회색(preview.html body 규칙과 동일 색)
       "#toolbar{position:fixed!important;top:0!important;left:0!important;right:0!important;height:48px!important;" +
       "display:flex!important;align-items:center!important;background:#fff!important;z-index:2147483647!important;" +
       "border-bottom:1px solid #d0d0d5!important;padding:0 16px!important;}" +
@@ -458,7 +452,7 @@
     totalPages = n;
     lastSz = sz; // 레일 리사이즈 후 썸네일 재생성에 사용
     statusEl.textContent = overflowOne ? `⚠ 한 페이지보다 큰 블록 ${overflowOne}개(잘림)` : "";
-    updatePill(1); flashPill(); // 스크롤스파이(IO)가 곧 실제 현재 페이지로 보정
+    updatePill(1); // 스크롤스파이(IO)가 곧 실제 현재 페이지로 보정
     buildThumbs(sz);
     buildToc();
     running = false;
@@ -502,9 +496,8 @@
   }
   setupResize($("thumbresize"), true);
   setupResize($("tocresize"), false);
-  // TOC 스크롤스파이 + 하단 알약 — rAF 스로틀
+  // TOC 스크롤스파이(현재 페이지 알약 텍스트도 여기서 갱신) — rAF 스로틀
   window.addEventListener("scroll", () => {
-    flashPill(); // 스크롤 시 현재 페이지 알약 잠깐 표시
     if (tocRaf) return;
     tocRaf = requestAnimationFrame(() => { tocRaf = 0; updateTocSpy(); });
   }, { passive: true });
