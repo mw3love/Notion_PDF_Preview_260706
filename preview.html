@@ -51,9 +51,10 @@
         #toolbar button.primary { background: #2383e2; color: #fff; border-color: #2383e2; }
         #status { margin-left: auto; color: #666; }
         #pages { padding: 64px var(--tocw) 40px var(--thumbw); }
-        /* 현재 페이지 인디케이터 — 상단바 정중앙에 고정(flex 흐름에서 빼 툴바 기준 절대 중앙). */
+        /* 현재 페이지 인디케이터 — 툴바 바로 아래, 창 정중앙에 고정.
+           예전엔 툴바 안(정중앙)에 겹쳐뒀는데, 툴바에 필드가 늘수록(배율 등) 겹쳐 가려서 아래로 뺐다. */
         #pagepill {
-          position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+          position: fixed; left: 50%; top: 56px; transform: translateX(-50%); z-index: 9;
           background: rgba(28,28,30,.78); color: #fff; font-size: 12px; font-weight: 600;
           padding: 4px 12px; border-radius: 999px; letter-spacing: .03em; white-space: nowrap;
           pointer-events: none; /* 텍스트 표시만 — 뒤 요소 클릭 방해 안 함 */
@@ -61,6 +62,11 @@
         .pp-page {
           background: #fff; margin: 0 auto 12px;
           box-shadow: 0 1px 6px rgba(0,0,0,.25);
+          /* 화면 전용 "창 폭 맞춤" 줌 — preview.js 가 --pagezoom 을 계산해 갱신(인쇄엔 미적용,
+             @media screen 안이라 PDF 저장 시엔 항상 실제 물리 크기로 나감).
+             transform 대신 zoom 을 쓰는 이유: zoom 은 레이아웃 박스 자체를 줄여서 margin:auto 정중앙
+             배치·페이지 간 세로 간격이 그대로 맞는다(transform은 시각적으로만 줄어 박스 크기는 안 바뀜). */
+          zoom: var(--pagezoom, 1);
         }
         /* 좌측 썸네일 레일 — 좌측 빈 여백(gutter) 활용 */
         #thumbrail {
@@ -85,8 +91,10 @@
         #thumbrail .thumb.active .thumb-frame { border-color: #2383e2; box-shadow: 0 0 0 2px #2383e2; }
         #thumbrail .thumb-num { text-align: center; font-size: 11px; color: #888; margin-top: 3px; }
         #thumbrail .thumb.active .thumb-num { color: #2383e2; font-weight: 600; }
-        /* 레일 안의 페이지 클론은 주입 CSS의 !important 를 이 셀렉터(더 높은 특이성)로 무력화 */
-        #thumbrail .pp-page { margin: 0 !important; box-shadow: none !important; }
+        /* 레일 안의 페이지 클론은 주입 CSS의 !important 를 이 셀렉터(더 높은 특이성)로 무력화.
+           zoom:1 로 리셋 — 썸네일은 자기만의 transform:scale(k) 로 이미 축소하므로 뷰어의
+           --pagezoom 이 겹쳐 적용되면 이중으로 줄어든다. */
+        #thumbrail .pp-page { margin: 0 !important; box-shadow: none !important; zoom: 1 !important; }
         /* 우측 목차(TOC) 레일 — 우측 빈 여백(gutter) 활용, 좌측 썸네일 레일과 대칭 */
         #tocrail {
           position: fixed; top: 48px; right: 0; bottom: 0; width: var(--tocw);
@@ -219,6 +227,12 @@
         <label class="sub">좌우 <input id="marginH" type="number" value="20" min="0" max="60" step="1" style="width: 4em" /></label>
         <span class="sub">mm</span>
       </span>
+      <span class="fieldgroup">
+        <span class="fg-title">배율</span>
+        <input id="scale" type="number" value="100" min="10" max="200" step="5" style="width: 4em" />
+        <span class="sub">%</span>
+      </span>
+      <label title="이미지·비디오·파일·PDF·임베드 등 미디어 블록을 페이지 가로 중앙에 정렬(텍스트는 원본 정렬 유지)"><input id="centerImg" type="checkbox" checked /> 이미지 가운데</label>
       <span class="fieldgroup annot" id="annot"></span>
       <span id="status">불러오는 중…</span>
       <button id="save" class="primary">PDF로 저장</button>

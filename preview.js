@@ -8,6 +8,8 @@
   const paperSel = $("paper");
   const marginVInp = $("marginV"); // 상하 여백(mm)
   const marginHInp = $("marginH"); // 좌우 여백(mm)
+  const scaleInp = $("scale"); // 인쇄 배율(%) — 100 미만이면 더 많은 내용이 한 페이지에 들어감
+  const centerImgInp = $("centerImg"); // 리사이즈 안 한 이미지 가운데 정렬
   const pageRuleEl = $("pp-page-rule");
   const railEl = $("thumbrail");
   const tocEl = $("tocrail");
@@ -211,6 +213,9 @@
       ".pp-page *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}" +
       ".pp-page .notion-page-content{width:100%!important;max-width:none!important;padding:0!important;margin:0!important;}" +
       ".pp-page-inner > *{max-width:100%;}" +
+      // 이미지 가운데 정렬 옵션(툴바 체크박스) — 화면·인쇄 모두 적용(WYSIWYG). .pp-imgwrap 은
+      // preview.js 의 fixImageSizes() 가 이미지를 감싼 리사이즈 박스에 매 조판마다 표시한다.
+      "body.center-img .pp-imgwrap{display:block!important;margin-left:auto!important;margin-right:auto!important;}" +
       // 표를 본문 폭에 맞춰 축소(Notion 표는 컬럼 고정 px 라 여백 크면 오른쪽이 잘림).
       // width:100%+auto 레이아웃이면 컬럼 비율을 대략 유지하며 폭에 맞게 줄고, min-width:0·줄바꿈으로 안 넘침.
       ".pp-page-inner table{width:100%!important;max-width:100%!important;table-layout:auto!important;}" +
@@ -253,18 +258,83 @@
     ]);
   }
 
+  // Notion에서 리사이즈하지 않은 이미지는 폭이 페이지(용지)에 상대적으로 늘어나 있어,
+  // 큰 용지(A2/A1)에서 원본 해상도 이상으로 확대되어 흐릿하게 나온다. 리사이즈로 폭을
+  // 줄인 이미지(원본 픽셀폭 이하)는 그대로 두고, 원본보다 커진 것만 원본 픽셀폭까지 축소한다.
+  // 함께: 실제 리사이즈 값을 담는 진짜 Notion 블록(.notion-image-block — 실제 export DOM에서
+  // 확인: style="width:672px;max-width:1155px;align-self:center;...")에 .pp-imgwrap 표시 —
+  // 가운데 정렬 옵션(centerImgInp)이 이 표시를 대상으로 margin:auto를 건다.
+  // (이전엔 "인라인 width를 가진 가장 가까운 조상"을 추측으로 찾았는데, img 바로 위의
+  //  100% 채움용 내부 div를 잘못 짚어 정렬이 전혀 안 먹었다 — 실제 DOM 확인 후 교체.)
+  function fixImageSizes(root) {
+    root.querySelectorAll("img").forEach((img) => {
+      const nat = img.naturalWidth;
+      if (!nat) return; // 디코딩 실패·SVG 등 고유 크기 없음
+      const block = img.closest(".notion-image-block");
+      (block || img).classList.add("pp-imgwrap");
+      const rect = img.getBoundingClientRect();
+      if (rect.width <= nat + 1) return; // 이미 원본 이하 폭 — 의도적으로 줄인 상태, 손대지 않음
+      img.style.setProperty("width", nat + "px", "important");
+      img.style.setProperty("height", "auto", "important");
+      img.style.setProperty("max-width", "100%", "important");
+      if (block && block.getBoundingClientRect().width > nat + 1) {
+        block.style.setProperty("width", nat + "px", "important");
+        block.style.setProperty("max-width", "100%", "important");
+      }
+    });
+  }
+
+  // 가운데 정렬 대상을 이미지뿐 아니라 미디어 블록 전체(비디오·파일·PDF·임베드·북마크·오디오)로
+  // 넓힌다. 텍스트 문단은 대상에서 뺀다 — Notion 작성자가 이미 지정한 정렬(왼쪽/가운데 등)을
+  // 우리가 강제로 덮어쓰면 원래 문서 의도가 깨진다. 미디어 블록은 리사이즈 가능한(폭이 페이지보다
+  // 좁을 수 있는) 블록이라 가운데 정렬이 자연스럽고, 클래스명은 .notion-image-block 과 같은
+  // 명명 규칙(notion-*-block)을 따른다고 보고 확장 — 이미지 블록만 실제 DOM으로 확인됐다.
+  const MEDIA_BLOCK_SEL =
+    ".notion-image-block, .notion-video-block, .notion-file-block, " +
+    ".notion-pdf-block, .notion-embed-block, .notion-bookmark-block, .notion-audio-block";
+  function tagMediaBlocksForCenter(root) {
+    root.querySelectorAll(MEDIA_BLOCK_SEL).forEach((el) => el.classList.add("pp-imgwrap"));
+  }
+
+  // 재조판(용지·여백·배율 변경) 전후로 스크롤 위치를 유지한다. 조판이 끝나면
+  // pagesEl.innerHTML 을 통째로 새로 채우는데, 그전엔 그냥 스크롤이 맨 위로 튀었다.
+  // 절대 px 대신 "몇 번째 페이지 + 그 안에서의 비율"로 기억해야, 배율 등으로 페이지 수·페이지
+  // 높이가 바뀌어도 같은 자리(비율)로 복귀할 수 있다(줌과도 무관 — 복귀 시점의 실제 크기로 계산).
+  function captureScrollAnchor() {
+    const pages = [...pagesEl.children];
+    if (!pages.length) return null;
+    const y = window.scrollY;
+    let idx = 0;
+    for (let i = 0; i < pages.length; i++) {
+      if (pages[i].getBoundingClientRect().top + y <= y + 60) idx = i; else break;
+    }
+    const r = pages[idx].getBoundingClientRect(); // r.top = 뷰포트 기준(음수면 이미 그 페이지 안으로 스크롤된 상태)
+    const frac = r.height > 0 ? Math.max(0, Math.min(1, -r.top / r.height)) : 0;
+    return { idx, frac };
+  }
+  function restoreScrollAnchor(anchor) {
+    if (!anchor) return;
+    const pages = [...pagesEl.children];
+    if (!pages.length) return;
+    const page = pages[Math.min(anchor.idx, pages.length - 1)];
+    const r = page.getBoundingClientRect();
+    window.scrollTo({ top: r.top + window.scrollY + anchor.frac * r.height - 56, behavior: "auto" });
+  }
+
   let running = false;
   async function paginate() {
     if (running) return;
     running = true;
     statusEl.textContent = "계산 중…";
+    const scrollAnchor = captureScrollAnchor();
 
     const paper = paperSel.value;
     const mv = Math.max(0, parseInt(marginVInp.value, 10) || 0); // 상하
     const mh = Math.max(0, parseInt(marginHInp.value, 10) || 0); // 좌우
     const sz = SIZES[paper] || SIZES.A4;
+    const scale = Math.max(10, Math.min(200, parseInt(scaleInp.value, 10) || 100)) / 100; // 인쇄 배율
 
-    // 페이지 박스는 mm 단위로 잡아 용지와 정확히 1:1 매칭(96dpi 반올림 넘침 방지).
+    // 페이지 박스는 mm 단위로 잡아 용지와 정확히 1:1 매칭(96dpi 반올림 넘침 방지). 측정 전용(배율 미적용).
     function makePage() {
       const pg = document.createElement("div");
       pg.className = "pp-page";
@@ -275,14 +345,18 @@
       pg.appendChild(inner);
       return { pg, inner };
     }
-    // 콘텐츠 영역의 실제 px 크기 측정(조판 임계값·이미지 max-height·wrap 폭에 사용)
+    // 콘텐츠 영역의 실제(물리) px 크기 측정(용지·여백 기준, 배율 무관)
     const probe = makePage();
     probe.pg.style.position = "absolute";
     probe.pg.style.left = "-99999px";
     document.body.appendChild(probe.pg);
-    const contentH = probe.inner.clientHeight;
-    const contentW = probe.inner.clientWidth;
+    const physH = probe.inner.clientHeight;
+    const physW = probe.inner.clientWidth;
     probe.pg.remove();
+    // 배율 적용 후 실제 흐름 배치에 쓰는 '논리' 크기 — 배율<100%면 더 넓게 흘려 담고
+    // 실제 페이지에는 transform:scale로 축소해 넣는다(더 많은 내용이 한 페이지에 들어감).
+    const contentH = physH / scale;
+    const contentW = physW / scale;
 
     // 인쇄용 @page: 박스가 여백을 padding 으로 포함하므로 margin:0
     // + 한 페이지보다 큰 이미지는 페이지 안에 맞게 축소(잘림 방지)
@@ -299,6 +373,8 @@
     document.body.appendChild(wrap);
     await (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve());
     await decodeImages(wrap);
+    fixImageSizes(wrap);
+    tagMediaBlocksForCenter(wrap);
 
     // 흐름 단위 = 제목 블록 + .notion-page-content 의 직접 자식들
     const contentRoot = wrap.querySelector(".notion-page-content");
@@ -314,7 +390,16 @@
     let overflowOne = 0;
     let cur; // 현재 페이지의 inner(흐름 대상)
     function newPage() {
-      const { pg, inner } = makePage();
+      const pg = document.createElement("div");
+      pg.className = "pp-page";
+      pg.style.cssText = `width:${sz.w}mm;height:${sz.h}mm;padding:${mv}mm ${mh}mm;box-sizing:border-box;overflow:hidden;position:relative;`;
+      const inner = document.createElement("div");
+      inner.className = "pp-page-inner notion-page-content";
+      // 논리 크기(contentW/H)로 흘려 담은 뒤 transform:scale로 물리 페이지 크기에 맞춤(배율=100%면 사실상 무변화)
+      // !important: injectStyles 의 ".pp-page .notion-page-content{width:100%!important}" 를 이겨야
+      // 함(인라인 !important 는 동일 중요도 내에서 특이성 최상위라 스타일시트 !important 도 이김).
+      inner.style.cssText = `width:${contentW}px!important;height:${contentH}px!important;overflow:hidden;transform:scale(${scale});transform-origin:top left;`;
+      pg.appendChild(inner);
       pagesEl.appendChild(pg);
       cur = inner;
       return inner;
@@ -455,16 +540,44 @@
     updatePill(1); // 스크롤스파이(IO)가 곧 실제 현재 페이지로 보정
     buildThumbs(sz);
     buildToc();
+    applyViewFit(); // 용지 바뀌면 화면 맞춤 배율도 다시 계산
+    restoreScrollAnchor(scrollAnchor); // 줌 적용 후 최종 크기 기준으로 복귀
     running = false;
   }
   let lastSz = SIZES.A4;
 
+  // 화면 전용 "창 폭 맞춤" — 실제 페이지(.pp-page)가 뷰포트보다 넓으면(A2·A1 등) 오른쪽이 화면
+  // 밖으로 밀려 잘려 보이던 문제. 좌측 썸네일 레일이 이미 하던 걸(폭에 맞춰 축소) 큰 뷰어에도 그대로
+  // 적용 — --pagezoom 을 갱신하면 preview.html 의 CSS(zoom:var(--pagezoom))가 즉시 반영된다.
+  // @media screen 안에만 있는 규칙이라 PDF 저장(인쇄)엔 영향 없이 항상 실제 물리 크기로 나간다.
+  function applyViewFit() {
+    const cs = getComputedStyle(document.documentElement);
+    const thumbw = document.body.classList.contains("norail") ? 0 : (parseFloat(cs.getPropertyValue("--thumbw")) || 0);
+    const tocw = document.body.classList.contains("notoc") ? 0 : (parseFloat(cs.getPropertyValue("--tocw")) || 0);
+    const available = window.innerWidth - thumbw - tocw - 24; // 그림자·스크롤바 여유
+    const pageW = lastSz.w * MM_PER_PX;
+    const fit = available > 0 ? available / pageW : 1;
+    document.documentElement.style.setProperty("--pagezoom", fit.toFixed(4));
+  }
+  let viewFitRaf = 0;
+  function scheduleViewFit() {
+    if (viewFitRaf) return;
+    viewFitRaf = requestAnimationFrame(() => { viewFitRaf = 0; applyViewFit(); });
+  }
+  window.addEventListener("resize", scheduleViewFit);
+
   paperSel.addEventListener("change", paginate);
   marginVInp.addEventListener("change", paginate);
   marginHInp.addEventListener("change", paginate);
+  scaleInp.addEventListener("change", paginate);
+  // 가운데 정렬은 순수 CSS 토글(재조판 불필요) — .pp-imgwrap 표시는 paginate()의 fixImageSizes 가 매번 새로 찍음.
+  centerImgInp.addEventListener("change", () => {
+    document.body.classList.toggle("center-img", centerImgInp.checked);
+  });
+  document.body.classList.toggle("center-img", centerImgInp.checked); // 초기 상태(기본 체크됨)
   // 레일 접기 손잡이(chevron): 클릭 = 접기/펼치기 토글(너비 조절은 테두리 리사이즈 바가 담당).
-  $("thumbhandle").addEventListener("click", () => document.body.classList.toggle("norail"));
-  $("tochandle").addEventListener("click", () => document.body.classList.toggle("notoc"));
+  $("thumbhandle").addEventListener("click", () => { document.body.classList.toggle("norail"); applyViewFit(); });
+  $("tochandle").addEventListener("click", () => { document.body.classList.toggle("notoc"); applyViewFit(); });
 
   // 레일 안쪽 테두리 전체를 드래그 = 너비 조절(썸네일=우측 스크롤바쪽, 목차=좌측 테두리).
   // 조절 중엔 body.resizing 으로 텍스트 선택 차단. 썸네일은 드래그 중 실시간으로 새 폭에 맞춰
@@ -486,12 +599,14 @@
       const w = Math.max(MIN, Math.min(MAX, isLeft ? sw + dx : sw - dx));
       document.documentElement.style.setProperty(varName, w + "px");
       if (isLeft && !raf) raf = requestAnimationFrame(() => { raf = 0; buildThumbs(lastSz); }); // 실시간 미리보기
+      scheduleViewFit(); // 레일 폭이 바뀌면 뷰어 가용 폭도 바뀜 — 양쪽 레일 모두 해당
     });
     document.addEventListener("mouseup", () => {
       if (!active) return;
       active = false;
       document.body.classList.remove("resizing");
       if (isLeft) { if (raf) { cancelAnimationFrame(raf); raf = 0; } buildThumbs(lastSz); } // 최종 폭으로 확정
+      applyViewFit();
     });
   }
   setupResize($("thumbresize"), true);
