@@ -4,3 +4,6 @@ Thumbs.db
 
 # macOS
 .DS_Store
+
+# 배포 패키지
+dist/

@@ -37,6 +37,8 @@
         }
         #toolbar label { display: inline-flex; align-items: center; gap: 4px; }
         #toolbar select, #toolbar input { font-size: 13px; padding: 3px 6px; }
+        /* 여백/배율 숫자칸의 위아래 화살표(스핀 버튼) — 크롬 기본은 hover 시에만 보임 → 상시 표시로 강제 */
+        #toolbar input[type="number"]::-webkit-inner-spin-button { opacity: 1; }
         /* 여백 그룹: 상하·좌우가 같은 '여백' 항목임을 테두리로 묶어 표현 */
         #toolbar .fieldgroup {
           display: inline-flex; align-items: center; gap: 8px;
@@ -235,7 +237,7 @@
       <label title="이미지·비디오·파일·PDF·임베드 등 미디어 블록을 페이지 가로 중앙에 정렬(텍스트는 원본 정렬 유지)"><input id="centerImg" type="checkbox" checked /> 이미지 가운데</label>
       <span class="fieldgroup annot" id="annot"></span>
       <span id="status">불러오는 중…</span>
-      <button id="save" class="primary">PDF로 저장</button>
+      <button id="save" class="primary">인쇄</button>
       <div id="pagepill"></div>
     </div>
     <div id="thumbrail"></div>
