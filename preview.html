@@ -52,6 +52,28 @@
         }
         #toolbar button.primary { background: #2383e2; color: #fff; border-color: #2383e2; }
         #status { margin-left: auto; color: #666; }
+        #donate-link {
+          display: inline-flex; align-items: center; gap: 4px;
+          font-size: 12px; color: #999; text-decoration: none; padding: 4px 8px;
+          border-radius: 5px; white-space: nowrap;
+        }
+        #donate-link:hover { color: #555; background: #f6f6f8; }
+        #donate-overlay {
+          display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45);
+          z-index: 100; align-items: center; justify-content: center;
+        }
+        #donate-overlay.open { display: flex; }
+        #donate-modal {
+          background: #fff; border-radius: 10px; padding: 24px; width: 280px;
+          text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,.25); position: relative;
+        }
+        #donate-modal img { width: 100%; height: auto; border-radius: 6px; margin: 12px 0; }
+        #donate-modal p { font-size: 13px; color: #555; margin: 0 0 4px; }
+        #donate-close {
+          position: absolute; top: 8px; right: 10px; border: none; background: none;
+          font-size: 18px; color: #999; cursor: pointer; line-height: 1; padding: 4px;
+        }
+        #donate-close:hover { color: #333; }
         #pages { padding: 64px var(--tocw) 40px var(--thumbw); }
         /* 현재 페이지 인디케이터 — 툴바 바로 아래, 창 정중앙에 고정.
            예전엔 툴바 안(정중앙)에 겹쳐뒀는데, 툴바에 필드가 늘수록(배율 등) 겹쳐 가려서 아래로 뺐다. */
@@ -236,9 +258,18 @@
       </span>
       <label title="이미지·비디오·파일·PDF·임베드 등 미디어 블록을 페이지 가로 중앙에 정렬(텍스트는 원본 정렬 유지)"><input id="centerImg" type="checkbox" checked /> 이미지 가운데</label>
       <span class="fieldgroup annot" id="annot"></span>
+      <a id="donate-link" href="#" title="이 확장 프로그램이 유용하셨다면 후원해주세요">☕ 후원</a>
       <span id="status">불러오는 중…</span>
       <button id="save" class="primary">인쇄</button>
       <div id="pagepill"></div>
+    </div>
+    <div id="donate-overlay">
+      <div id="donate-modal">
+        <button id="donate-close" title="닫기">✕</button>
+        <p>카카오페이로 스캔해서 후원해주세요</p>
+        <img src="icons/kakaopay-qr.png" alt="카카오페이 후원 QR" />
+        <p style="color:#999; font-size:12px;">보내주신 마음, 감사히 잘 쓰겠습니다</p>
+      </div>
     </div>
     <div id="thumbrail"></div>
     <div id="tocrail"></div>

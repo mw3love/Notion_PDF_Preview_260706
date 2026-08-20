@@ -982,6 +982,15 @@
   applyToolUI(); // 초기 버튼/패널 상태
   $("save").addEventListener("click", () => window.print());
 
+  $("donate-link").addEventListener("click", (e) => {
+    e.preventDefault();
+    $("donate-overlay").classList.add("open");
+  });
+  $("donate-close").addEventListener("click", () => $("donate-overlay").classList.remove("open"));
+  $("donate-overlay").addEventListener("click", (e) => {
+    if (e.target.id === "donate-overlay") $("donate-overlay").classList.remove("open");
+  });
+
   injectStyles();
   await paginate();
 })();
