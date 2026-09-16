@@ -14,6 +14,30 @@
   const railEl = $("thumbrail");
   const tocEl = $("tocrail");
 
+  // ── 화면 언어(i18n) ──
+  // 기본 en. 저장된 선택이 있으면 그걸로 시작하고, 툴바 토글로 즉시 전환(재조판 없음 — 라벨만 교체).
+  const I18N = self.PP_I18N;
+  const T = (k, ...a) => I18N.t(k, ...a);
+  let curPage = 1, lastOverflow = 0, docTitle = null; // 토글 시 다시 그려야 하는 동적 문자열의 상태
+  function applyI18n() {
+    document.documentElement.lang = I18N.lang;
+    document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = T(el.dataset.i18n); });
+    document.querySelectorAll("[data-i18n-title]").forEach((el) => { el.title = T(el.dataset.i18nTitle); });
+    // data-i18n 으로 못 덮는 동적 문자열
+    if (totalPages) updatePill(curPage);
+    if (docTitle != null) document.title = docTitle + " — " + T("appName");
+    renderStatus();
+  }
+  function renderStatus() {
+    if (statusEl.dataset.i18n) return; // 초기 '불러오는 중' 상태는 applyI18n 이 이미 처리
+    statusEl.textContent = lastOverflow ? T("overflow", lastOverflow) : "";
+  }
+  await I18N.load();
+  $("langtoggle").addEventListener("click", async () => {
+    await I18N.save(I18N.other());
+    applyI18n();
+  });
+
   const SIZES = { // mm
     A4: { w: 210, h: 297 }, A3: { w: 297, h: 420 },
     A2: { w: 420, h: 594 }, A1: { w: 594, h: 841 },
@@ -24,7 +48,7 @@
   // 상단바 정중앙 알약(#pagepill): 현재/전체 쪽 — 상시 표시, 스크롤스파이가 텍스트만 갱신.
   let totalPages = 0;
   const pillEl = $("pagepill");
-  function updatePill(cur) { pillEl.textContent = (cur || 1) + " / " + totalPages + " 쪽"; }
+  function updatePill(cur) { curPage = cur || 1; pillEl.textContent = T("pill", curPage, totalPages); }
 
   // 좌측 레일에 각 페이지의 축소 클론(썸네일)을 그린다. paginate 끝에서 매번 리빌드.
   // 이미지가 이미 data URL 로 인라인돼 있어 클론이 오프라인으로 완전히 렌더된다.
@@ -162,23 +186,28 @@
     if (!items.length) {
       const e = document.createElement("div");
       e.className = "toc-empty";
-      e.textContent = "제목(헤딩)이 없습니다";
+      e.dataset.i18n = "noHeadings"; // 토글 시 applyI18n 이 함께 갱신
+      e.textContent = T("noHeadings");
       tocEl.appendChild(e);
       return;
     }
     updateTocSpy();
   }
 
+  applyI18n(); // 첫 페인트: 툴바 라벨을 저장된 언어로
+
   const data = await chrome.storage.local.get("snapshot");
   const snap = data && data.snapshot;
   if (!snap || !snap.html) {
-    statusEl.textContent = "스냅샷이 없습니다. Notion 페이지에서 확장 버튼을 눌러 실행하세요.";
+    statusEl.dataset.i18n = "noSnapshot"; // 토글해도 따라 바뀌게
+    statusEl.textContent = T("noSnapshot");
     return;
   }
 
-  const title = (snap.meta && snap.meta.title) || "미리보기";
+  const title = (snap.meta && snap.meta.title) || T("previewFallback");
+  docTitle = title;
   $("doctitle").textContent = title;
-  document.title = title + " — 페이지 나눔 미리보기";
+  document.title = title + " — " + T("appName");
 
   // 상대 url()(폰트/이미지)을 시트 base href 기준 절대경로로 치환(data:/절대/#/앵커는 유지)
   function absolutizeUrls(css, baseHref) {
@@ -325,7 +354,8 @@
   async function paginate() {
     if (running) return;
     running = true;
-    statusEl.textContent = "계산 중…";
+    delete statusEl.dataset.i18n; // 초기 '불러오는 중' 상태 해제
+    statusEl.textContent = T("calculating");
     const scrollAnchor = captureScrollAnchor();
 
     const paper = paperSel.value;
@@ -536,7 +566,8 @@
     const n = pagesEl.children.length;
     totalPages = n;
     lastSz = sz; // 레일 리사이즈 후 썸네일 재생성에 사용
-    statusEl.textContent = overflowOne ? `⚠ 한 페이지보다 큰 블록 ${overflowOne}개(잘림)` : "";
+    lastOverflow = overflowOne;
+    renderStatus();
     updatePill(1); // 스크롤스파이(IO)가 곧 실제 현재 페이지로 보정
     buildThumbs(sz);
     buildToc();
@@ -625,9 +656,9 @@
   // 주석은 각 .pp-page 안에 들어가 인쇄에 함께 나온다(테두리·배경은 print-color-adjust:exact 로 출력).
   // ⚠ 재계산(용지·여백 변경) 시 페이지가 원본에서 다시 조판되므로 주석은 사라진다(주석은 마지막에).
   // 각 도구는 자기 색을 기억(기본: 형광펜 코랄 · 네모 빨강 · 텍스트 검정). hover 패널에서 색·두께·크기 변경.
-  const PALETTE = [
-    { n: "검정", c: "#000000" }, { n: "흰색", c: "#ffffff" }, { n: "빨강", c: "#e23b3b" },
-    { n: "코랄", c: "#ff7f50" }, { n: "파랑", c: "#2f6fe0" },
+  const PALETTE = [ // k = i18n 키(툴팁), c = 색
+    { k: "colorBlack", c: "#000000" }, { k: "colorWhite", c: "#ffffff" }, { k: "colorRed", c: "#e23b3b" },
+    { k: "colorCoral", c: "#ff7f50" }, { k: "colorBlue", c: "#2f6fe0" },
   ];
   const toolColor = { hl: "#ff7f50", box: "#e23b3b", text: "#000000" };
   let tool = null;                        // 'hl' | 'box' | 'text' | null
@@ -646,11 +677,11 @@
   const fontIcon = `<span style="font-family:Georgia,serif;color:#666;display:inline-flex;align-items:baseline;gap:1px;line-height:1"><span style="font-size:17px">A</span><span style="font-size:11px">A</span></span>`;
 
   const toolBtns = {}, swPanels = {};
-  function buildTool(t, iconHtml, title, extra) {
+  function buildTool(t, iconHtml, titleKey, extra) {
     const wrap = document.createElement("span");
     wrap.className = "toolwrap";
     const btn = document.createElement("button");
-    btn.innerHTML = iconHtml; btn.title = title; btn.dataset.tool = t;
+    btn.innerHTML = iconHtml; btn.dataset.i18nTitle = titleKey; btn.title = T(titleKey); btn.dataset.tool = t;
     btn.addEventListener("mousedown", (e) => e.preventDefault()); // 클릭이 기존 텍스트 선택을 지우지 않게
     btn.addEventListener("click", () => setTool(t));
     wrap.appendChild(btn);
@@ -658,7 +689,7 @@
     panel.className = "toolpanel";
     swPanels[t] = PALETTE.map((p) => {
       const s = document.createElement("button");
-      s.className = "sw"; s.style.background = p.c; s.title = p.n;
+      s.className = "sw"; s.style.background = p.c; s.dataset.i18nTitle = p.k; s.title = T(p.k);
       s.addEventListener("mousedown", (e) => e.preventDefault());
       s.addEventListener("click", () => pickColor(t, p.c));
       panel.appendChild(s); return s;
@@ -669,8 +700,10 @@
       ctl.innerHTML = extra === "line" ? lineIcon : fontIcon;
       const inp = document.createElement("input");
       inp.type = "number";
-      if (extra === "line") { inp.value = "3"; inp.min = "1"; inp.max = "20"; ctl.title = "선 두께(px) — 네모 위에서 휠로도 조절"; lineWInp = inp; }
-      else { inp.value = "16"; inp.min = "8"; inp.max = "96"; ctl.title = "글자 크기(px) — 텍스트 위에서 휠로도 조절"; fontSzInp = inp; }
+      const tk = extra === "line" ? "lineWidthTitle" : "fontSizeTitle";
+      ctl.dataset.i18nTitle = tk; ctl.title = T(tk);
+      if (extra === "line") { inp.value = "3"; inp.min = "1"; inp.max = "20"; lineWInp = inp; }
+      else { inp.value = "16"; inp.min = "8"; inp.max = "96"; fontSzInp = inp; }
       ctl.appendChild(inp);
       panel.appendChild(ctl);
     }
@@ -678,9 +711,9 @@
     annotEl.appendChild(wrap);
     toolBtns[t] = btn;
   }
-  buildTool("hl", hlIcon, "형광펜 (Alt+1) — hover 로 색 선택", null);
-  buildTool("box", boxIcon, "네모박스 (Alt+2) — 클릭 선택·이동·크기조절·Del 삭제, hover 로 색·두께", "line");
-  buildTool("text", textIcon, "텍스트 (Alt+3) — 클릭 입력·더블클릭 재편집·Del 삭제, hover 로 색·크기", "font");
+  buildTool("hl", hlIcon, "toolHl", null);
+  buildTool("box", boxIcon, "toolBox", "line");
+  buildTool("text", textIcon, "toolText", "font");
 
   function paintSw(t) { swPanels[t].forEach((s, i) => s.classList.toggle("active", PALETTE[i].c === toolColor[t])); }
   function pickColor(t, c) {
@@ -981,15 +1014,6 @@
 
   applyToolUI(); // 초기 버튼/패널 상태
   $("save").addEventListener("click", () => window.print());
-
-  $("donate-link").addEventListener("click", (e) => {
-    e.preventDefault();
-    $("donate-overlay").classList.add("open");
-  });
-  $("donate-close").addEventListener("click", () => $("donate-overlay").classList.remove("open"));
-  $("donate-overlay").addEventListener("click", (e) => {
-    if (e.target.id === "donate-overlay") $("donate-overlay").classList.remove("open");
-  });
 
   injectStyles();
   await paginate();

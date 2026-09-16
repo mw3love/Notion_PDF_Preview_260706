@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>페이지 나눔 미리보기</title>
+    <title>Page Break Preview</title>
     <style>
       html, body { margin: 0; padding: 0; }
       :root { --thumbw: 176px; --tocw: 220px; } /* 좌 썸네일·우 목차 레일 너비(드래그로 조절) */
@@ -52,28 +52,6 @@
         }
         #toolbar button.primary { background: #2383e2; color: #fff; border-color: #2383e2; }
         #status { margin-left: auto; color: #666; }
-        #donate-link {
-          display: inline-flex; align-items: center; gap: 4px;
-          font-size: 12px; color: #999; text-decoration: none; padding: 4px 8px;
-          border-radius: 5px; white-space: nowrap;
-        }
-        #donate-link:hover { color: #555; background: #f6f6f8; }
-        #donate-overlay {
-          display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45);
-          z-index: 100; align-items: center; justify-content: center;
-        }
-        #donate-overlay.open { display: flex; }
-        #donate-modal {
-          background: #fff; border-radius: 10px; padding: 24px; width: 280px;
-          text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,.25); position: relative;
-        }
-        #donate-modal img { width: 100%; height: auto; border-radius: 6px; margin: 12px 0; }
-        #donate-modal p { font-size: 13px; color: #555; margin: 0 0 4px; }
-        #donate-close {
-          position: absolute; top: 8px; right: 10px; border: none; background: none;
-          font-size: 18px; color: #999; cursor: pointer; line-height: 1; padding: 4px;
-        }
-        #donate-close:hover { color: #333; }
         #pages { padding: 64px var(--tocw) 40px var(--thumbw); }
         /* 현재 페이지 인디케이터 — 툴바 바로 아래, 창 정중앙에 고정.
            예전엔 툴바 안(정중앙)에 겹쳐뒀는데, 툴바에 필드가 늘수록(배율 등) 겹쳐 가려서 아래로 뺐다. */
@@ -236,8 +214,8 @@
   </head>
   <body>
     <div id="toolbar">
-      <strong id="doctitle">미리보기</strong>
-      <label>용지
+      <strong id="doctitle">Preview</strong>
+      <label><span data-i18n="paper">Paper</span>
         <select id="paper">
           <option value="A4" selected>A4</option>
           <option value="A3">A3</option>
@@ -246,40 +224,34 @@
         </select>
       </label>
       <span class="fieldgroup">
-        <span class="fg-title">여백</span>
-        <label class="sub">상하 <input id="marginV" type="number" value="20" min="0" max="60" step="1" style="width: 4em" /></label>
-        <label class="sub">좌우 <input id="marginH" type="number" value="20" min="0" max="60" step="1" style="width: 4em" /></label>
-        <span class="sub">mm</span>
+        <span class="fg-title" data-i18n="margins">Margins</span>
+        <label class="sub"><span data-i18n="marginV">Vert</span> <input id="marginV" type="number" value="20" min="0" max="60" step="1" style="width: 4em" /></label>
+        <label class="sub"><span data-i18n="marginH">Horiz</span> <input id="marginH" type="number" value="20" min="0" max="60" step="1" style="width: 4em" /></label>
+        <span class="sub" data-i18n="mm">mm</span>
       </span>
       <span class="fieldgroup">
-        <span class="fg-title">배율</span>
+        <span class="fg-title" data-i18n="scale">Scale</span>
         <input id="scale" type="number" value="100" min="10" max="200" step="5" style="width: 4em" />
         <span class="sub">%</span>
       </span>
-      <label title="이미지·비디오·파일·PDF·임베드 등 미디어 블록을 페이지 가로 중앙에 정렬(텍스트는 원본 정렬 유지)"><input id="centerImg" type="checkbox" checked /> 이미지 가운데</label>
+      <label data-i18n-title="centerImgTitle"><input id="centerImg" type="checkbox" checked /> <span data-i18n="centerImg">Center images</span></label>
       <span class="fieldgroup annot" id="annot"></span>
-      <a id="donate-link" href="#" title="이 확장 프로그램이 유용하셨다면 후원해주세요">☕ 후원</a>
-      <span id="status">불러오는 중…</span>
-      <button id="save" class="primary">인쇄</button>
+      <!-- 화면 언어 토글(EN/KO) — 버튼 라벨은 '전환할 언어'를 보여준다. 선택은 storage 에 저장. -->
+      <button id="langtoggle" data-i18n="langToggle" data-i18n-title="langToggleTitle">한국어</button>
+      <span id="status" data-i18n="loading">Loading…</span>
+      <button id="save" class="primary" data-i18n="print">Print</button>
       <div id="pagepill"></div>
-    </div>
-    <div id="donate-overlay">
-      <div id="donate-modal">
-        <button id="donate-close" title="닫기">✕</button>
-        <p>카카오페이로 스캔해서 후원해주세요</p>
-        <img src="icons/kakaopay-qr.jpg" alt="카카오페이 후원 QR" />
-        <p style="color:#999; font-size:12px;">보내주신 마음, 감사히 잘 쓰겠습니다</p>
-      </div>
     </div>
     <div id="thumbrail"></div>
     <div id="tocrail"></div>
     <!-- 레일 접기 손잡이(chevron) — 클릭으로 접기/펼치기. 접혀도 화면 가장자리에 남아 재확장. -->
-    <div id="thumbhandle" class="rail-handle" title="클릭: 썸네일 접기/펼치기"></div>
-    <div id="tochandle" class="rail-handle" title="클릭: 목차 접기/펼치기"></div>
+    <div id="thumbhandle" class="rail-handle" data-i18n-title="thumbHandleTitle"></div>
+    <div id="tochandle" class="rail-handle" data-i18n-title="tocHandleTitle"></div>
     <!-- 레일 안쪽 테두리 전체 = 드래그로 너비 조절(썸네일=스크롤바쪽, 목차=왼쪽 테두리) -->
-    <div id="thumbresize" class="rail-resize" title="드래그: 썸네일 레일 너비 조절"></div>
-    <div id="tocresize" class="rail-resize" title="드래그: 목차 레일 너비 조절"></div>
+    <div id="thumbresize" class="rail-resize" data-i18n-title="thumbResizeTitle"></div>
+    <div id="tocresize" class="rail-resize" data-i18n-title="tocResizeTitle"></div>
     <div id="pages"></div>
+    <script src="i18n.js"></script>
     <script src="preview.js"></script>
   </body>
 </html>

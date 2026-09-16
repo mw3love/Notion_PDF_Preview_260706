@@ -1,25 +1,25 @@
 // 서비스워커: 툴바 버튼 클릭 → 활성 Notion 탭에 스냅샷 스크립트 주입.
 // 스냅샷 스크립트가 저장을 마치면 'open-preview' 메시지를 보내고, 여기서 미리보기 탭을 연다.
 
+importScripts("i18n.js"); // PP_I18N — 안내 문구를 저장된 화면 언어로
+
 const NOTION_RE = /^https:\/\/([a-z0-9-]+\.)?notion\.(so|com)\//i;
 
 chrome.action.onClicked.addListener(async (tab) => {
   if (!tab.id || !NOTION_RE.test(tab.url || "")) {
     // Notion 페이지가 아니면 안내 탭을 연다.
+    await PP_I18N.load();
     chrome.tabs.create({
-      url:
-        "data:text/html;charset=utf-8," +
-        encodeURIComponent(
-          "<h2>Notion 페이지에서 실행하세요</h2><p>app.notion.com 페이지 탭을 활성화한 뒤 확장 버튼을 누르세요.</p>"
-        ),
+      url: "data:text/html;charset=utf-8," + encodeURIComponent(PP_I18N.t("notNotionHtml")),
     });
     return;
   }
   try {
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      files: ["content-snapshot.js"],
-    });
+    // 두 번에 나눠 주입: executeScript 의 files 배열은 "배열 순서대로 실행"이 문서로 보장되지
+    // 않는다(공식 문서는 manifest content_scripts 의 js 배열에만 순서를 명시). content-snapshot 이
+    // PP_I18N 을 전제로 하므로 await 로 순서를 강제한다. 같은 확장·같은 프레임이라 isolated world 는 공유.
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["i18n.js"] });
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content-snapshot.js"] });
   } catch (e) {
     console.error("[notion-page-preview] inject failed", e);
   }

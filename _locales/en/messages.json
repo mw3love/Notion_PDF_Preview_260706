@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "Page Break Preview for Notion",
+    "description": "Extension name shown in the Chrome Web Store and the browser."
+  },
+  "extDesc": {
+    "message": "Preview a Notion page split into A4-A1 sheets before exporting, add highlight/box/text annotations, and save as PDF.",
+    "description": "Extension description."
+  },
+  "actionTitle": {
+    "message": "Page Break Preview (click on a Notion page)",
+    "description": "Toolbar button tooltip."
+  }
+}

@@ -15,7 +15,9 @@
     return d;
   }
 
-  const busy = toast("페이지 스냅샷 중…");
+  const T = (k, ...a) => self.PP_I18N.t(k, ...a); // 화면 언어(기본 en) — 미리보기 토글과 같은 저장값
+  await self.PP_I18N.load();
+  const busy = toast(T("snapBusy"));
 
   // 1) 가상화된 블록 실체화: 스크롤러를 위→아래로 훑어 안 그려진 블록까지 렌더시킨다.
   async function realizeBlocks() {
@@ -38,7 +40,7 @@
   const content = document.querySelector(".notion-page-content");
   if (!content) {
     busy.remove();
-    toast("Notion 본문(.notion-page-content)을 찾지 못했습니다.");
+    toast(T("snapNoContent"));
     return;
   }
   // 제목 블록: 본문 밖에 있는 첫 .notion-page-block
@@ -219,7 +221,7 @@
     chrome.runtime.sendMessage({ type: "open-preview" });
   } catch (e) {
     log("storage 저장 실패", e);
-    toast("스냅샷 저장 실패: " + e.message);
+    toast(T("snapSaveFail", e.message));
   } finally {
     busy.remove();
   }
