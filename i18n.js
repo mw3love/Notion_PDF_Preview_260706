@@ -1,7 +1,7 @@
 // 다국어 문자열 테이블 — 미리보기 UI 전용(런타임 토글 가능).
 // manifest(확장 이름·설명·버튼 툴팁)는 _locales/ + chrome.i18n 이 담당한다:
 //   chrome.i18n 은 브라우저 UI 언어에 고정돼 런타임 전환이 불가능해서, 토글이 필요한
-//   화면 문자열은 여기 자체 테이블로 관리한다. 기본값은 언제나 en(브라우저 언어 자동감지 안 함).
+//   화면 문자열은 여기 자체 테이블로 관리한다. 저장된 선택이 없으면 브라우저 UI 언어로 기본값(ko 브라우저 → ko, 그 외 → en).
 // 세 컨텍스트가 공유: preview.html(<script>), background.js(importScripts), content-snapshot.js(executeScript files 순서).
 (function (root) {
   const STR = {
@@ -89,19 +89,22 @@
 
   const I = {
     LANGS: ["en", "ko"],
-    lang: "en", // 기본값 = 영어(저장된 선택이 있을 때만 바뀜)
+    lang: "en", // load() 전 임시값 — load 가 저장값 또는 브라우저 언어로 덮어씀
     STR,
     t(key, ...args) {
       const tb = STR[I.lang] || STR.en;
       const s = tb[key] != null ? tb[key] : STR.en[key] != null ? STR.en[key] : key;
       return String(s).replace(/\{(\d+)\}/g, (m, i) => (args[i] != null ? args[i] : m));
     },
-    // 저장된 언어 선택을 읽어 I.lang 에 반영(없으면 en 유지). storage 접근 실패는 무시.
+    // 저장된 언어 선택을 I.lang 에 반영. 없거나 storage 접근 실패 시 브라우저 UI 언어(ko 아니면 en).
     async load() {
       try {
         const d = await chrome.storage.local.get("ppLang");
-        if (d && I.LANGS.includes(d.ppLang)) I.lang = d.ppLang;
+        if (d && I.LANGS.includes(d.ppLang)) { I.lang = d.ppLang; return I.lang; }
       } catch (e) {}
+      let ui = "";
+      try { ui = (chrome.i18n && chrome.i18n.getUILanguage()) || ""; } catch (e) {}
+      I.lang = ui.toLowerCase().startsWith("ko") ? "ko" : "en";
       return I.lang;
     },
     async save(lang) {

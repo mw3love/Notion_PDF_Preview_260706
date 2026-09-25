@@ -1,8 +1,10 @@
 # 개인정보처리방침 (Privacy Policy)
 
-**Notion 페이지 나눔 미리보기** (Notion PDF Preview) 확장 프로그램
+**Notion용 페이지 나눔 미리보기** (Page Break Preview for Notion) 확장 프로그램
 
-최종 수정일: 2026-09-17
+[English version below](#privacy-policy-english)
+
+최종 수정일: 2026-09-25
 
 ## 요약
 
@@ -26,7 +28,46 @@
 
 하지 않습니다. 수집하는 데이터 자체가 없습니다.
 
+이 확장은 Notion Labs, Inc.와 제휴·승인 관계가 없는 비공식 도구입니다. Notion은 Notion Labs, Inc.의 상표입니다.
+
 ## 문의
 
 이 확장 프로그램과 관련한 문의는 GitHub 저장소 이슈로 남겨주세요:
+https://github.com/mw3love/Notion_PDF_Preview_260706/issues
+
+---
+
+## Privacy Policy (English)
+
+**Page Break Preview for Notion** browser extension
+
+Last updated: 2026-09-25
+
+### Summary
+
+This extension does **not collect, store, or transmit** any personal information. All processing happens inside your browser, and no data is sent to the developer or any third-party server.
+
+### Information collected
+
+None. The extension contains no analytics, advertising, or error-reporting code of any kind.
+
+### Data accessed and why
+
+| Accessed | Purpose | Where it goes |
+|---|---|---|
+| Page content (DOM) and CSS of `app.notion.com` / `*.notion.so` pages | Snapshot used to render the print preview | Processed inside the browser only; never transmitted |
+| Notion images (`*.notionusercontent.com`, etc.) | Inlined as `data:` URLs so they show in the preview and printout | Requests go only to Notion's servers (using your existing signed-in session); results stay in the browser |
+| `chrome.storage` | Passes the page snapshot and inlined image data to the preview tab, and remembers your interface-language choice (English/Korean) | Stored only on your local device (not synced); never transmitted |
+
+The only domains this extension communicates with are `notion.so`, `notion.com`, and `notionusercontent.com`.
+
+### Selling or sharing data
+
+None. There is no collected data to sell or share.
+
+This is an unofficial tool and is not affiliated with, endorsed by, or sponsored by Notion Labs, Inc. Notion is a trademark of Notion Labs, Inc.
+
+### Contact
+
+Please open an issue on the GitHub repository:
 https://github.com/mw3love/Notion_PDF_Preview_260706/issues

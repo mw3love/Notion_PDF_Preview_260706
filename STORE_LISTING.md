@@ -24,12 +24,14 @@ Features:
 
 Works on Notion web (app.notion.com). Page content is processed entirely inside your browser; nothing is sent to any external server.
 
-Interface language is English by default and can be switched to Korean from the toolbar at any time.
+The interface follows your browser language (Korean or English) and can be switched from the toolbar at any time.
+
+This is an unofficial tool and is not affiliated with, endorsed by, or sponsored by Notion Labs, Inc. Notion is a trademark of Notion Labs, Inc.
 
 ## 스토어 등록정보 탭 — 한국어
 
 **이름**
-Notion 페이지 나눔 미리보기
+Notion용 페이지 나눔 미리보기
 
 **요약 (Summary, 132자 이내)**
 Notion 페이지를 PDF로 내보내기 전에 A4~A1 쪽 나눔을 미리 보고, 형광펜·네모·텍스트 주석을 얹어 바로 인쇄합니다.
@@ -46,11 +48,15 @@ Notion의 기본 PDF 내보내기는 서버에서 렌더링되어, 내보내기 
 
 대상은 Notion 웹(app.notion.com)이며, 이 확장은 Notion 페이지 콘텐츠를 브라우저 안에서만 처리합니다. 외부 서버로 어떤 데이터도 전송하지 않습니다.
 
+화면 언어는 브라우저 언어(한국어/영어)를 따르며, 툴바 버튼으로 언제든 전환할 수 있습니다.
+
+이 확장은 Notion Labs, Inc.와 제휴·승인 관계가 없는 비공식 도구입니다. Notion은 Notion Labs, Inc.의 상표입니다.
+
 **카테고리**
 생산성(Productivity)
 
 **언어**
-영어(기본) + 한국어. 화면 UI 언어는 툴바 버튼으로 실행 중 전환 가능
+영어(기본 로케일) + 한국어. 화면 UI 언어는 브라우저 언어 기본, 툴바 버튼으로 실행 중 전환 가능
 
 ## 개인정보처리(Privacy practices) 탭
 
